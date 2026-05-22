@@ -44,18 +44,11 @@ _MODELS: Dict[str, Dict[str, Any]] = {
 
 DEFAULT_MODEL = "doubao-seedream-5.0-lite"
 
-# Seedream 5.0 requires >= 3.68 million pixels (e.g. 2048x2048)
-_SIZES_V5 = {
+# Volcengine Seedream requires >= 3.68 million pixels (e.g. 2048x2048) to prevent API validation failures
+_SIZES = {
     "landscape": "2560x1440",
     "square": "2048x2048",
     "portrait": "1440x2560",
-}
-
-# Seedream 4.0 supports standard sizes
-_SIZES_V4 = {
-    "landscape": "1792x1024",
-    "square": "1024x1024",
-    "portrait": "1024x1792",
 }
 
 _TIMEOUT = httpx.Timeout(connect=10.0, read=120.0, write=10.0, pool=10.0)
@@ -176,11 +169,8 @@ class VolcengineImageGenProvider(ImageGenProvider):
                 aspect_ratio=aspect,
             )
 
-        # Route resolution sizes based on the model version (Seedream 5.0 vs 4.0)
-        if "5.0" in model:
-            size = _SIZES_V5.get(aspect, _SIZES_V5["square"])
-        else:
-            size = _SIZES_V4.get(aspect, _SIZES_V4["square"])
+        # Volcengine Seedream requires high resolutions (>= 3.68 million pixels) to prevent API validation failures
+        size = _SIZES.get(aspect, _SIZES["square"])
 
         print(f"[volcengine] Mapped resolution size: {size}", file=sys.stderr)
 
@@ -266,7 +256,27 @@ class VolcengineImageGenProvider(ImageGenProvider):
                 )
             image_ref = str(saved_path)
         elif url:
-            image_ref = url
+            print(f"[volcengine] Downloading image from remote URL: {url}", file=sys.stderr)
+            try:
+                import base64
+                # Download raw bytes using httpx with the same timeout
+                resp = httpx.get(url, timeout=_TIMEOUT)
+                resp.raise_for_status()
+                image_bytes = resp.content
+                b64_str = base64.b64encode(image_bytes).decode("utf-8")
+                saved_path = save_b64_image(b64_str, prefix=f"volc_{model}")
+                image_ref = str(saved_path)
+                print(f"[volcengine] Image downloaded and saved to: {image_ref}", file=sys.stderr)
+            except Exception as exc:
+                print(f"[volcengine] Failed to download or save remote image: {exc}", file=sys.stderr)
+                return error_response(
+                    error=f"下载并缓存远程图片失败: {exc}",
+                    error_type="io_error",
+                    provider="volcengine",
+                    model=model,
+                    prompt=prompt,
+                    aspect_ratio=aspect,
+                )
         else:
             return error_response(
                 error="Response contained neither b64_json nor URL",
