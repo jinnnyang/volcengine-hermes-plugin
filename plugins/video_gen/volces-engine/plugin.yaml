@@ -1,0 +1,7 @@
+name: volces-engine
+kind: backend
+version: 1.0.0
+description: "Volcengine Doubao Seedance Video Generation (火山引擎视频生成)"
+author: jinnn
+requires_env:
+  - ARK_API_KEY

@@ -1,0 +1,5 @@
+name: volces-engine
+kind: model-provider
+version: 1.0.0
+description: "Volcengine Doubao LLM Model Provider (火山引擎方舟 LLM)"
+author: jinnn
