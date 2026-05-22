@@ -1,6 +1,6 @@
 name: volcengine
 kind: backend
-version: 1.0.0
+version: 0.0.1
 description: "Volcengine Doubao Seedance Video Generation (火山引擎视频生成). Supports text-to-video and image-to-video. Automatically polls background task status every 10 seconds (~2-3m, blocks during execution) and saves video files to the local profile cache."
 author: jinnn
 requires_env:

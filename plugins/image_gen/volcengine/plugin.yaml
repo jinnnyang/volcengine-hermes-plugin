@@ -1,6 +1,6 @@
 name: volcengine
 kind: backend
-version: 1.0.0
+version: 0.0.1
 description: "Volcengine Doubao Seedream Image Generation (火山引擎图像生成). Generates images synchronously (~8-25s). Automatically downloads & saves images to local profile cache."
 author: jinnn
 requires_env:
