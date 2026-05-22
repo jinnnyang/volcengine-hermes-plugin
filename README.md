@@ -14,6 +14,7 @@ This plugin integration adds native support for Volcano Engine (火山引擎) mo
   - [1. LLM Models](#1-llm-models)
   - [2. Image Generation](#2-image-generation)
   - [3. Video Generation](#3-video-generation)
+- [FAQ](#faq)
 
 ---
 
@@ -202,3 +203,37 @@ Generate video files using the Doubao Seedance backend:
 hermes video "a hummingbird hovering next to a blooming flower"
 ```
 This routes through the wrapped `volcengine` video backend. Stderr logs will track task creation and polling.
+
+---
+
+## FAQ
+
+### Q: Can `image_gen/volcengine` and `video_gen/volcengine` be merged into a single `volcengine` package?
+
+**A: No, they cannot and should not be merged. Here is why:**
+
+1. **Hermes Agent Dynamic Plugin Scanner Convention**:
+   The Hermes Agent core scans and loads plugins dynamically based on their specific functional categories and directory paths:
+   - `plugins/image_gen/` is exclusively scanned for image generation backends.
+   - `plugins/video_gen/` is exclusively scanned for video generation backends.
+   - `plugins/model-providers/` is exclusively scanned for LLM providers.
+   If merged into a single root folder, the typed scanners would not be able to locate, load, or register the different backends properly.
+
+2. **Metadata Conflict (`plugin.yaml`)**:
+   Each plugin must contain a single `plugin.yaml` specifying its unique plugin type (`kind: backend`), version, and metadata. Merging them into a single directory would lead to metadata conflicts because a single folder can only define one plugin metadata record.
+
+3. **Granular Control in Configuration**:
+   Hermes supports selective activation of plugins via `config.yaml`:
+   ```yaml
+   plugins:
+     enabled:
+       - image_gen/volcengine
+       - video_gen/volcengine
+   ```
+   Having separate packages allows users to selectively enable/disable specific backend functionalities (e.g., enabling image gen while keeping video gen disabled) to save resources or match environment capabilities.
+
+4. **Separation of Concerns & Implementation Differences**:
+   - **Image Generation (Seedream)**: Uses a synchronous REST endpoint returning base64 data, resolving within ~8-25 seconds, using megapixel mappings.
+   - **Video Generation (Seedance)**: Uses an asynchronous task system requiring a status polling loop (taking ~2-3 minutes), content block lists, and video-specific audio/duration parameters.
+   Decoupling them keeps the codebases focused, easier to maintain, and cleaner.
+
