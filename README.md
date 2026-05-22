@@ -55,8 +55,9 @@ A custom backend that handles:
 - **Timeouts & Reliability**: Separated connect (10s) and read (120s) timeouts using `httpx.Timeout` to prevent premature failures on slow generations.
 
 ### 3. Video Generation Plugin (`Seedance 2.0`)
-- **Durable Task Processing**: Volcengine Video Generation is asynchronous by nature. The plugin implements a resilient synchronous wrapper around the asynchronous task creation (`POST /api/plan/v3/contents/generations/tasks`) and background status polling (`GET /api/plan/v3/contents/generations/tasks/{id}`) lifecycle.
-- **Real-Time Logs**: Prints the task creation status, Task ID, and current state (`queued`, `running`, etc.) directly to standard error (`sys.stderr`) to provide high visibility into the execution flow.
+- **Durable Task Processing & Guidance**: Volcengine Video Generation is asynchronous by nature, typically taking **2 to 3 minutes**. The plugin implements a resilient synchronous wrapper around the asynchronous task creation (`POST /api/plan/v3/contents/generations/tasks`) and background status polling (`GET /api/plan/v3/contents/generations/tasks/{id}`) lifecycle. The tool call blocks during this period, and the agent is guided to wait patiently without interrupting.
+- **Real-Time Logs & Polling**: Automatically polls the task status every 10 seconds. It prints the task creation status, Task ID, and current states (`queued`, `running`, `succeeded`) directly to standard error (`sys.stderr`) to provide maximum visibility and resolve any "black-box" loader state issues.
+- **Automatic Downloading & Local Caching**: Once video generation succeeds, the plugin **automatically downloads the video file** from the temporary remote URL and caches it locally under the profile's video cache folder (matching the local-saving behavior of image generation). The returned `video` reference contains the absolute local filesystem path (e.g., `/opt/data/profiles/athena/cache/videos/volc_...mp4`), making it fully offline-accessible.
 
 ---
 
@@ -129,6 +130,32 @@ If automatic installation is not available, you can copy and edit configurations
      provider: volcengine
      model: doubao-seedance-2.0
    ```
+
+---
+
+## Agent Guidance (智能体引导机制)
+
+To ensure that the calling LLM Agent operates with high efficiency and avoids confusion, this plugin implements a dedicated **Agent Guidance Mechanism**. Every tool execution response (both successful results and failure responses) returns a structured `"agent_guidance"` field in its JSON payload.
+
+### Core Capabilities of the Guidance:
+1. **Expected Durations**: Communicates standard timeframes to the Agent (e.g., images take ~8-25s, videos take ~2-3m).
+2. **Synchronous Polling Details**: Explains the task status (for image generation, it's synchronous and already complete; for video generation, the tool's internal polling loop has fully executed and finished).
+3. **Local Cache Handling & Rendering**: Concrete recommendations for rendering (such as displaying the file locally using the standard markdown notation `![description](file://<path>)`) and explicitly urging the Agent to directly present the result to the user instead of querying further or re-generating the file.
+4. **Actionable Troubleshooting**: If an execution fails, it guides the Agent step-by-step on how to inspect environment variables (`VOLCENGINE_API_KEY`) and account permissions.
+
+#### Success Payload Example:
+```json
+{
+  "success": true,
+  "image": "/opt/data/profiles/athena/cache/images/volc_doubao-seedream-5.0-lite_20260522_081344_72a34af6.png",
+  "model": "doubao-seedream-5.0-lite",
+  "prompt": "a simple red dot",
+  "aspect_ratio": "landscape",
+  "provider": "volcengine",
+  "size": "2560x1440",
+  "agent_guidance": "[AGENT GUIDANCE]\n- 预计耗时 (Estimated Duration): Doubao Seedream 5.0 Lite/Pro 耗时约 10s-25s，Seedream 4.0 约 8s。\n- 任务状态 (Task Status): 该任务为同步生成，已实时阻塞并成功完成。图片文件已下载保存。\n- 本地文件 (Local File): 图片已成功缓存到本地。请使用绝对路径展示该图片，例如：![图片](file:///opt/data/profiles/athena/cache/images/volc_doubao-seedream-5.0-lite_20260522_081344_72a34af6.png)。\n- 渲染/后续建议: 图像生成任务已全部成功完成，请直接展示给用户，无需重复调用生成。"
+}
+```
 
 ---
 

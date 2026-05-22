@@ -66,7 +66,22 @@ def _get_api_key() -> str | None:
 
 
 class VolcengineImageGenProvider(ImageGenProvider):
-    """Volcengine Doubao Seedream image generation backend."""
+    """Volcengine Doubao Seedream image generation backend.
+
+    AGENT GUIDANCE (指引):
+    1. Typical Duration (生成耗时):
+       - Seedream 4.0: ~8 seconds
+       - Seedream 5.0 Lite: ~10 seconds
+       - Seedream 5.0 Pro: ~25 seconds
+       Generation runs synchronously. Stderr outputs step-by-step progress logs.
+    2. How to Download/Access (下载与获取方式):
+       - The plugin automatically retrieves the base64-encoded image from Volcano Engine's server,
+         decodes it, and saves it locally inside the profile's cache directory.
+       - The returned `image` field contains the absolute local filesystem path (e.g. `/opt/data/profiles/athena/cache/images/volc_...png`).
+    3. How to Render (展示方式):
+       - Always use standard markdown syntax: `![description](file:///absolute/local/path.png)`
+         to render the image. The container gateway will serve it to the user.
+    """
 
     @property
     def name(self) -> str:
@@ -103,6 +118,34 @@ class VolcengineImageGenProvider(ImageGenProvider):
         }
 
     def generate(
+        self,
+        prompt: str,
+        aspect_ratio: str = DEFAULT_ASPECT_RATIO,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        res = self._generate_core(prompt, aspect_ratio, **kwargs)
+        if res.get("success"):
+            image_ref = res.get("image")
+            res["agent_guidance"] = (
+                "[AGENT GUIDANCE]\n"
+                "- 预计耗时 (Estimated Duration): Doubao Seedream 5.0 Lite/Pro 耗时约 10s-25s，Seedream 4.0 约 8s。\n"
+                "- 任务状态 (Task Status): 该任务为同步生成，已实时阻塞并成功完成。图片文件已下载保存。\n"
+                f"- 本地文件 (Local File): 图片已成功缓存到本地。请使用绝对路径展示该图片，例如：![图片](file://{image_ref})。\n"
+                "- 渲染/后续建议: 图像生成任务已全部成功完成，请直接展示给用户，无需重复调用生成。"
+            )
+        else:
+            error = res.get("error", "Unknown error")
+            res["agent_guidance"] = (
+                "[AGENT GUIDANCE]\n"
+                f"- 失败原因 (Failure Reason): {error}\n"
+                "- 预计耗时 (Estimated Duration): 图像生成本需 8s-25s，但由于上述错误已终止。\n"
+                "- 确认与排查 (Verification): 请检查您的 VOLCENGINE_API_KEY / ARK_API_KEY 环境变量配置是否正确，"
+                "并确保选择的 model 在您的 Volcano Engine 账户中已被授权使用。\n"
+                "- 后续动作 (Next Steps): 修复配置后可以重新调用生成工具。"
+            )
+        return res
+
+    def _generate_core(
         self,
         prompt: str,
         aspect_ratio: str = DEFAULT_ASPECT_RATIO,

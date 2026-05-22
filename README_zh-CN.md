@@ -132,6 +132,32 @@ bash install.sh
 
 ---
 
+## Agent Guidance (智能体引导机制)
+
+为了确保调用的 LLM Agent 能够高效操作并避免混淆，本插件实现了一套专用的**智能体引导机制**（Agent Guidance Mechanism）。每一次工具执行的响应中（无论是成功还是失败），其 JSON 结构中都会附加一个专门的 `"agent_guidance"` 字段。
+
+### 引导机制的核心能力：
+1. **预估耗时引导**：告知 Agent 标准执行时间（例如：图片生成需要 8s-25s，视频生成需要 2-3 分钟），让 Agent 能够合理预期并对用户进行安抚。
+2. **任务状态透明**：说明当前任务的处理逻辑（图像生成是同步的，已经实时阻塞并完成；视频生成是异步的，但工具内置了同步轮询，当前已经完全执行完毕并缓存）。
+3. **本地缓存与渲染建议**：提供具体的渲染方式（如使用标准的 Markdown 语法 `![图片](file://<path>)` 来展示本地绝对路径的文件），并明确要求 Agent 优先展示已有结果，避免不必要的重复生成或无休止的状态查询。
+4. **可操作的排查建议**：如果执行失败，会详细指导 Agent 如何检查环境变量（`VOLCENGINE_API_KEY`）和火山引擎账户的服务开通状态，方便 Agent 自我纠错和重试。
+
+#### 成功响应的 JSON 载荷示例：
+```json
+{
+  "success": true,
+  "image": "/opt/data/profiles/athena/cache/images/volc_doubao-seedream-5.0-lite_20260522_081344_72a34af6.png",
+  "model": "doubao-seedream-5.0-lite",
+  "prompt": "a simple red dot",
+  "aspect_ratio": "landscape",
+  "provider": "volcengine",
+  "size": "2560x1440",
+  "agent_guidance": "[AGENT GUIDANCE]\n- 预计耗时 (Estimated Duration): Doubao Seedream 5.0 Lite/Pro 耗时约 10s-25s，Seedream 4.0 约 8s。\n- 任务状态 (Task Status): 该任务为同步生成，已实时阻塞并成功完成。图片文件已下载保存。\n- 本地文件 (Local File): 图片已成功缓存到本地。请使用绝对路径展示该图片，例如：![图片](file:///opt/data/profiles/athena/cache/images/volc_doubao-seedream-5.0-lite_20260522_081344_72a34af6.png)。\n- 渲染/后续建议: 图像生成任务已全部成功完成，请直接展示给用户，无需重复调用生成。"
+}
+```
+
+---
+
 ## 配置说明
 
 要授权火山引擎的 API 请求，请配置您的火山方舟 API Key。主环境变量为 `VOLCENGINE_API_KEY`，并同时向下兼容 `ARK_API_KEY` 作为备用参数：

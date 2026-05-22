@@ -41,7 +41,26 @@ def _get_api_key() -> str | None:
 
 
 class VolcengineVideoGenProvider(VideoGenProvider):
-    """Volcengine Doubao Seedance video generation backend."""
+    """Volcengine Doubao Seedance video generation backend.
+
+    AGENT GUIDANCE (指引):
+    1. Typical Duration (生成耗时):
+       - Doubao Seedance 2.0: ~2 to 3 minutes.
+       - Generating video is a long-running task. The tool call will block during this period.
+         Please be patient and do not interrupt.
+    2. Background Task Polling (任务状态查询):
+       - The API processes tasks asynchronously. The provider handles this seamlessly via an internal
+         polling mechanism that queries the backend status every 10 seconds.
+       - Progress states (e.g., `Task status: queued`, `Task status: running`, `Task status: succeeded`)
+         are printed to `sys.stderr` in real time so the runner/agent is kept aware.
+    3. Automatic Download & Local Cache (自动下载与本地缓存):
+       - Once generated, the video is AUTOMATICALLY downloaded from the remote server's temporary URL
+         and saved locally under the profile's video cache directory.
+       - The returned `video` field contains the absolute local filesystem path (e.g., `/opt/data/profiles/athena/cache/videos/volc_...mp4`).
+    4. How to Render (展示方式):
+       - Always use standard markdown syntax: `![description](file:///absolute/local/path.mp4)`
+         to render the video. The container gateway will serve it to the user.
+    """
 
     @property
     def name(self) -> str:
@@ -77,7 +96,70 @@ class VolcengineVideoGenProvider(VideoGenProvider):
             ],
         }
 
+    def capabilities(self) -> Dict[str, Any]:
+        return {
+            "modalities": ["text", "image"],
+            "aspect_ratios": ["16:9", "9:16", "1:1", "4:3", "3:4", "3:2", "2:3", "landscape", "portrait", "square"],
+            "resolutions": ["720p"],
+            "max_duration": 10,
+            "min_duration": 1,
+            "supports_audio": True,
+            "supports_negative_prompt": False,
+            "max_reference_images": 5,
+        }
+
     def generate(
+        self,
+        prompt: str,
+        *,
+        model: Optional[str] = None,
+        image_url: Optional[str] = None,
+        reference_image_urls: Optional[List[str]] = None,
+        duration: Optional[int] = None,
+        aspect_ratio: str = DEFAULT_ASPECT_RATIO,
+        resolution: str = "720p",
+        negative_prompt: Optional[str] = None,
+        audio: Optional[bool] = None,
+        seed: Optional[int] = None,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        res = self._generate_sync_wrapper(
+            prompt=prompt,
+            model=model,
+            image_url=image_url,
+            reference_image_urls=reference_image_urls,
+            duration=duration,
+            aspect_ratio=aspect_ratio,
+            resolution=resolution,
+            negative_prompt=negative_prompt,
+            audio=audio,
+            seed=seed,
+            **kwargs
+        )
+        if res.get("success"):
+            video_ref = res.get("video")
+            task_id = res.get("task_id", "unknown")
+            res["agent_guidance"] = (
+                "[AGENT GUIDANCE]\n"
+                "- 预计耗时 (Estimated Duration): Doubao Seedance 2.0 视频生成一般需要 2 至 3 分钟。\n"
+                f"- 任务状态 (Task Status): 这是一个长耗时异步任务，但该工具内置了同步轮询机制（已实时查询完毕，Task ID: {task_id}）。当前任务已全部成功完成。\n"
+                "- 自动下载 (Auto-Download): 视频已自动从临时链接下载并缓存在本地文件系统目录，支持离线/后续直接引用。\n"
+                f"- 本地文件 (Local File): 请使用绝对路径展示或引用该视频，如：![视频](file://{video_ref})。\n"
+                "- 渲染/后续建议: 视频已就绪，请直接渲染并返回给用户，避免重复生成或继续查询状态。"
+            )
+        else:
+            error = res.get("error", "Unknown error")
+            res["agent_guidance"] = (
+                "[AGENT GUIDANCE]\n"
+                f"- 失败原因 (Failure Reason): {error}\n"
+                "- 预计耗时 (Estimated Duration): 视频生成本需 2-3 分钟，但由于上述错误已终止。\n"
+                "- 确认与排查 (Verification): 请检查您的 VOLCENGINE_API_KEY / ARK_API_KEY 环境变量配置是否正确，"
+                "并确保选择的 model (如 doubao-seedance-2.0) 在您的 Volcano Engine 账户中已开通并在服务列表中。\n"
+                "- 后续动作 (Next Steps): 修复配置或网络问题后可重新调用该工具。"
+            )
+        return res
+
+    def _generate_sync_wrapper(
         self,
         prompt: str,
         *,
@@ -319,16 +401,30 @@ class VolcengineVideoGenProvider(VideoGenProvider):
                     aspect_ratio=aspect,
                 )
 
-            print(f"[volcengine] Video generation successful. Video URL: {video_url}", file=sys.stderr)
+            print(f"[volcengine] Video generation successful. Remote Video URL: {video_url}", file=sys.stderr)
+
+            # Automatically download the video to the local profile's video cache
+            print("[volcengine] Downloading video to local cache...", file=sys.stderr)
+            try:
+                from agent.video_gen_provider import save_bytes_video
+                video_resp = await client.get(video_url, timeout=_TIMEOUT)
+                video_resp.raise_for_status()
+                local_path = save_bytes_video(video_resp.content, prefix=f"volc_{model}")
+                video_ref = str(local_path)
+                print(f"[volcengine] Video downloaded successfully: {video_ref}", file=sys.stderr)
+            except Exception as exc:
+                print(f"[volcengine] Failed to cache video locally: {exc}. Falling back to remote URL.", file=sys.stderr)
+                video_ref = video_url
+
             return success_response(
-                video=video_url,
+                video=video_ref,
                 model=model,
                 prompt=prompt,
                 modality="image" if image_url_norm else "text",
                 aspect_ratio=aspect,
                 duration=duration or 0,
                 provider="volcengine",
-                extra={"task_id": task_id},
+                extra={"task_id": task_id, "remote_url": video_url},
             )
 
 
