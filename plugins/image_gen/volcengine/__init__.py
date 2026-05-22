@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -24,38 +25,52 @@ _MODELS: Dict[str, Dict[str, Any]] = {
     "doubao-seedream-5.0-lite": {
         "display": "Doubao Seedream 5.0 Lite",
         "speed": "~10s",
-        "strengths": "快速生成，适合迭代",
+        "strengths": "5.0大模型，生成速度较快",
         "price": "paid",
     },
     "doubao-seedream-5.0-pro": {
         "display": "Doubao Seedream 5.0 Pro",
         "speed": "~25s",
-        "strengths": "高质量，适合最终产出",
+        "strengths": "5.0大模型，高质量画质",
+        "price": "paid",
+    },
+    "doubao-seedream-4.0": {
+        "display": "Doubao Seedream 4.0",
+        "speed": "~8s",
+        "strengths": "4.0版模型，稳定基础版本",
         "price": "paid",
     },
 }
 
 DEFAULT_MODEL = "doubao-seedream-5.0-lite"
 
-_SIZES = {
+# Seedream 5.0 requires >= 3.68 million pixels (e.g. 2048x2048)
+_SIZES_V5 = {
     "landscape": "2560x1440",
     "square": "2048x2048",
     "portrait": "1440x2560",
+}
+
+# Seedream 4.0 supports standard sizes
+_SIZES_V4 = {
+    "landscape": "1792x1024",
+    "square": "1024x1024",
+    "portrait": "1024x1792",
 }
 
 _TIMEOUT = httpx.Timeout(connect=10.0, read=120.0, write=10.0, pool=10.0)
 
 
 def _get_api_key() -> str | None:
-    return os.environ.get("ARK_API_KEY") or os.environ.get("VOLCENGINE_API_KEY")
+    return os.environ.get("VOLCENGINE_API_KEY") or os.environ.get("ARK_API_KEY")
 
 
-class VolcImageGenProvider(ImageGenProvider):
+class VolcengineImageGenProvider(ImageGenProvider):
     """Volcengine Doubao Seedream image generation backend."""
 
     @property
     def name(self) -> str:
-        return "volces-engine"
+        return "volcengine"
 
     @property
     def display_name(self) -> str:
@@ -77,11 +92,11 @@ class VolcImageGenProvider(ImageGenProvider):
         return {
             "name": "火山引擎 (Seedream)",
             "badge": "paid",
-            "tag": "Doubao Seedream 5.0 — 字节跳动官方图像生成",
+            "tag": "Doubao Seedream — 字节跳动官方图像生成",
             "env_vars": [
                 {
-                    "key": "ARK_API_KEY",
-                    "prompt": "火山引擎 ARK API Key",
+                    "key": "VOLCENGINE_API_KEY",
+                    "prompt": "火山引擎 API Key (ARK API Key)",
                     "url": "https://console.volcengine.com/ark/region:ark+cn-beijing/apikey",
                 },
             ],
@@ -97,27 +112,34 @@ class VolcImageGenProvider(ImageGenProvider):
         aspect = resolve_aspect_ratio(aspect_ratio)
         model = kwargs.get("model", DEFAULT_MODEL)
 
+        # Print detailed execution info to stderr to resolve black-box issues
+        print(f"[volcengine] Calling Image Generation: model={model}, aspect_ratio={aspect}", file=sys.stderr)
+        print(f"[volcengine] Prompt: \"{prompt}\"", file=sys.stderr)
+
         if not prompt:
             return error_response(
                 error="Prompt is required",
                 error_type="invalid_argument",
-                provider="volces-engine",
+                provider="volcengine",
                 aspect_ratio=aspect,
             )
 
         api_key = _get_api_key()
         if not api_key:
             return error_response(
-                error="ARK_API_KEY not set. Run `hermes tools` → Image Generation → 火山引擎 to configure.",
+                error="VOLCENGINE_API_KEY or ARK_API_KEY not set. Configure it via environment variable or hermes tools.",
                 error_type="auth_required",
-                provider="volces-engine",
+                provider="volcengine",
                 aspect_ratio=aspect,
             )
 
-        size = _SIZES.get(aspect)
-        if size is None:
-            logger.warning("Unknown aspect ratio '%s', falling back to square", aspect)
-            size = _SIZES["square"]
+        # Route resolution sizes based on the model version (Seedream 5.0 vs 4.0)
+        if "5.0" in model:
+            size = _SIZES_V5.get(aspect, _SIZES_V5["square"])
+        else:
+            size = _SIZES_V4.get(aspect, _SIZES_V4["square"])
+
+        print(f"[volcengine] Mapped resolution size: {size}", file=sys.stderr)
 
         headers = {
             "Authorization": f"Bearer {api_key}",
@@ -129,8 +151,6 @@ class VolcImageGenProvider(ImageGenProvider):
             "response_format": "b64_json",
             "size": size,
         }
-
-        logger.info("Volcengine image gen: model=%s, prompt_len=%d, size=%s", model, len(prompt), size)
 
         try:
             resp = httpx.post(BASE_URL, json=payload, headers=headers, timeout=_TIMEOUT)
@@ -144,31 +164,31 @@ class VolcImageGenProvider(ImageGenProvider):
                     error_msg += f": {err_body['error'].get('message', str(err_body['error']))}"
             except Exception:
                 error_msg += f": {exc.response.text[:200]}"
-            logger.warning("Volcengine image gen failed: %s", error_msg)
+            print(f"[volcengine] API call failed: {error_msg}", file=sys.stderr)
             return error_response(
                 error=f"API 调用失败: {error_msg}",
                 error_type="api_error",
-                provider="volces-engine",
+                provider="volcengine",
                 model=model,
                 prompt=prompt,
                 aspect_ratio=aspect,
             )
         except httpx.RequestError as exc:
-            logger.warning("Volcengine image gen network error: %s", exc)
+            print(f"[volcengine] Network error: {exc}", file=sys.stderr)
             return error_response(
                 error=f"网络错误: {exc}",
                 error_type="network_error",
-                provider="volces-engine",
+                provider="volcengine",
                 model=model,
                 prompt=prompt,
                 aspect_ratio=aspect,
             )
         except Exception as exc:
-            logger.warning("Volcengine image gen unexpected error: %s", exc, exc_info=True)
+            print(f"[volcengine] Unexpected error: {exc}", file=sys.stderr)
             return error_response(
                 error=f"图像生成失败: {exc}",
                 error_type="api_error",
-                provider="volces-engine",
+                provider="volcengine",
                 model=model,
                 prompt=prompt,
                 aspect_ratio=aspect,
@@ -179,7 +199,7 @@ class VolcImageGenProvider(ImageGenProvider):
             return error_response(
                 error="Volcengine returned no image data",
                 error_type="empty_response",
-                provider="volces-engine",
+                provider="volcengine",
                 model=model,
                 prompt=prompt,
                 aspect_ratio=aspect,
@@ -196,7 +216,7 @@ class VolcImageGenProvider(ImageGenProvider):
                 return error_response(
                     error=f"Could not save image to cache: {exc}",
                     error_type="io_error",
-                    provider="volces-engine",
+                    provider="volcengine",
                     model=model,
                     prompt=prompt,
                     aspect_ratio=aspect,
@@ -208,22 +228,23 @@ class VolcImageGenProvider(ImageGenProvider):
             return error_response(
                 error="Response contained neither b64_json nor URL",
                 error_type="empty_response",
-                provider="volces-engine",
+                provider="volcengine",
                 model=model,
                 prompt=prompt,
                 aspect_ratio=aspect,
             )
 
-        logger.info("Volcengine image gen success: model=%s", model)
+        print(f"[volcengine] Image generation successful. Saved to: {image_ref}", file=sys.stderr)
         return success_response(
             image=image_ref,
             model=model,
             prompt=prompt,
             aspect_ratio=aspect,
-            provider="volces-engine",
+            provider="volcengine",
             extra={"size": size},
         )
 
 
 def register(ctx) -> None:
-    ctx.register_image_gen_provider(VolcImageGenProvider())
+    ctx.register_image_gen_provider(VolcengineImageGenProvider())
+    print("[volcengine] Image Gen provider registered successfully.", file=sys.stderr)

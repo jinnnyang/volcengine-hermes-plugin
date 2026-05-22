@@ -1,5 +1,5 @@
 #!/bin/sh
-# install.sh - Install volces-engine plugins to Hermes Agent profile
+# install.sh - Install volcengine plugins to Hermes Agent profile
 
 set -e
 
@@ -38,7 +38,7 @@ def update_config(config_path):
                 substripped = subline.strip()
                 if substripped.startswith("provider:"):
                     indent = " " * (len(subline) - len(subline.lstrip()))
-                    new_lines.append(f"{indent}provider: volces-engine")
+                    new_lines.append(f"{indent}provider: volcengine")
                     break
                 elif substripped.endswith(":") and not substripped.startswith("-"):
                     i -= 1
@@ -57,7 +57,7 @@ def update_config(config_path):
                 substripped = subline.strip()
                 if substripped.startswith("provider:"):
                     indent = " " * (len(subline) - len(subline.lstrip()))
-                    new_lines.append(f"{indent}provider: volces-engine")
+                    new_lines.append(f"{indent}provider: volcengine")
                     break
                 elif substripped.endswith(":") and not substripped.startswith("-"):
                     i -= 1
@@ -85,10 +85,10 @@ def update_config(config_path):
         elif in_plugins and stripped == "enabled:":
             in_enabled = True
         elif in_enabled and stripped.startswith("-"):
-            val = stripped.split("-")[1].strip()
-            if val == "image_gen/volces-engine":
+            val = stripped.split("-", 1)[1].strip()
+            if val == "image_gen/volcengine":
                 has_image_gen_plugin = True
-            elif val == "video_gen/volces-engine":
+            elif val == "video_gen/volcengine":
                 has_video_gen_plugin = True
         elif stripped.endswith(":") and not stripped.startswith("-"):
             in_plugins = False
@@ -97,8 +97,13 @@ def update_config(config_path):
     in_plugins = False
     in_enabled = False
     for line in new_lines:
-        final_lines.append(line)
         stripped = line.strip()
+        if in_enabled and stripped.startswith("-"):
+            val = stripped.split("-", 1)[1].strip()
+            if val == "image_gen/volces-engine" or val == "video_gen/volces-engine":
+                continue  # Clean up old volces-engine entries
+        
+        final_lines.append(line)
         if stripped == "plugins:":
             in_plugins = True
             in_enabled = False
@@ -107,9 +112,9 @@ def update_config(config_path):
             indent = " " * (len(line) - len(line.lstrip()))
             item_indent = indent + "  "
             if not has_image_gen_plugin:
-                final_lines.append(f"{item_indent}- image_gen/volces-engine")
+                final_lines.append(f"{item_indent}- image_gen/volcengine")
             if not has_video_gen_plugin:
-                final_lines.append(f"{item_indent}- video_gen/volces-engine")
+                final_lines.append(f"{item_indent}- video_gen/volcengine")
         elif stripped.endswith(":") and not stripped.startswith("-"):
             in_plugins = False
             in_enabled = False
@@ -119,21 +124,21 @@ def update_config(config_path):
         final_lines.append("")
         final_lines.append("plugins:")
         final_lines.append("  enabled:")
-        final_lines.append("    - image_gen/volces-engine")
-        final_lines.append("    - video_gen/volces-engine")
+        final_lines.append("    - image_gen/volcengine")
+        final_lines.append("    - video_gen/volcengine")
         
     saw_image_gen = any(l.strip() == "image_gen:" for l in final_lines)
     if not saw_image_gen:
         final_lines.append("")
         final_lines.append("image_gen:")
-        final_lines.append("  provider: volces-engine")
+        final_lines.append("  provider: volcengine")
         final_lines.append("  model: doubao-seedream-5.0-lite")
 
     saw_video_gen = any(l.strip() == "video_gen:" for l in final_lines)
     if not saw_video_gen:
         final_lines.append("")
         final_lines.append("video_gen:")
-        final_lines.append("  provider: volces-engine")
+        final_lines.append("  provider: volcengine")
         final_lines.append("  model: doubao-seedance-2.0")
 
     with open(config_path, 'w', encoding='utf-8') as f:
@@ -169,17 +174,16 @@ find_hermes_homes() {
       found_dirs="$found_dirs
 $base"
     fi
-    # search subdirectories recursively
-    if command -v find >/dev/null 2>&1; then
-      dirs=$(find "$base" -name "config.yaml" 2>/dev/null)
-      for cfg in $dirs; do
-        dir=$(dirname "$cfg")
+    # search direct subdirectories
+    for cfg in "$base"/*/config.yaml; do
+      if [ -f "$cfg" ]; then
+        dir="${cfg%/config.yaml}"
         if [ -f "$dir/SOUL.md" ] && [ -e "$dir/home" ]; then
           found_dirs="$found_dirs
 $dir"
         fi
-      done
-    fi
+      fi
+    done
   done
 
   # output unique sorted directories, stripping any carriage return
@@ -194,27 +198,27 @@ show_manual_instructions() {
   echo "If automatic installation is not possible, please follow these steps:"
   echo ""
   echo "1. Copy the plugin folders to your Hermes profile's plugins directory:"
-  echo "   cp -r plugins/model-providers/volces-engine [HERMES_HOME]/plugins/model-providers/"
-  echo "   cp -r plugins/image_gen/volces-engine [HERMES_HOME]/plugins/image_gen/"
-  echo "   cp -r plugins/video_gen/volces-engine [HERMES_HOME]/plugins/video_gen/"
+  echo "   cp -r plugins/model-providers/volcengine [HERMES_HOME]/plugins/model-providers/"
+  echo "   cp -r plugins/image_gen/volcengine [HERMES_HOME]/plugins/image_gen/"
+  echo "   cp -r plugins/video_gen/volcengine [HERMES_HOME]/plugins/video_gen/"
   echo ""
   echo "2. Edit your [HERMES_HOME]/config.yaml file to enable the plugins:"
   echo "   plugins:"
   echo "     enabled:"
-  echo "       - image_gen/volces-engine"
-  echo "       - video_gen/volces-engine"
+  echo "       - image_gen/volcengine"
+  echo "       - video_gen/volcengine"
   echo ""
   echo "3. Configure active providers in [HERMES_HOME]/config.yaml:"
   echo "   image_gen:"
-  echo "     provider: volces-engine"
+  echo "     provider: volcengine"
   echo "     model: doubao-seedream-5.0-lite"
   echo ""
   echo "   video_gen:"
-  echo "     provider: volces-engine"
+  echo "     provider: volcengine"
   echo "     model: doubao-seedance-2.0"
   echo ""
   echo "4. Set up environment variables in your profile's .env file:"
-  echo "   ARK_API_KEY=your_api_key_here"
+  echo "   VOLCENGINE_API_KEY=your_api_key_here"
   echo "=================================================================="
 }
 
@@ -270,29 +274,43 @@ echo "[+] Installing to profile: $chosen_home"
 
 # Copy plugin files
 echo "--> Creating plugin directories..."
-mkdir -p "$chosen_home/plugins/model-providers/volces-engine"
-mkdir -p "$chosen_home/plugins/image_gen/volces-engine"
-mkdir -p "$chosen_home/plugins/video_gen/volces-engine"
+mkdir -p "$chosen_home/plugins/model-providers/volcengine"
+mkdir -p "$chosen_home/plugins/image_gen/volcengine"
+mkdir -p "$chosen_home/plugins/video_gen/volcengine"
+
+# Clean up older volces-engine plugin directories if they exist in the profile
+if [ -d "$chosen_home/plugins/model-providers/volces-engine" ]; then
+  echo "--> Cleaning up older profile plugin model-providers/volces-engine..."
+  rm -rf "$chosen_home/plugins/model-providers/volces-engine"
+fi
+if [ -d "$chosen_home/plugins/image_gen/volces-engine" ]; then
+  echo "--> Cleaning up older profile plugin image_gen/volces-engine..."
+  rm -rf "$chosen_home/plugins/image_gen/volces-engine"
+fi
+if [ -d "$chosen_home/plugins/video_gen/volces-engine" ]; then
+  echo "--> Cleaning up older profile plugin video_gen/volces-engine..."
+  rm -rf "$chosen_home/plugins/video_gen/volces-engine"
+fi
 
 echo "--> Copying plugin files..."
-if [ -d "plugins/model-providers/volces-engine" ]; then
-  cp -r plugins/model-providers/volces-engine/* "$chosen_home/plugins/model-providers/volces-engine/"
+if [ -d "plugins/model-providers/volcengine" ]; then
+  cp -r plugins/model-providers/volcengine/* "$chosen_home/plugins/model-providers/volcengine/"
 else
-  echo "[!] Source plugins/model-providers/volces-engine not found! Make sure you run this script from the workspace root."
+  echo "[!] Source plugins/model-providers/volcengine not found! Make sure you run this script from the workspace root."
   exit 1
 fi
 
-if [ -d "plugins/image_gen/volces-engine" ]; then
-  cp -r plugins/image_gen/volces-engine/* "$chosen_home/plugins/image_gen/volces-engine/"
+if [ -d "plugins/image_gen/volcengine" ]; then
+  cp -r plugins/image_gen/volcengine/* "$chosen_home/plugins/image_gen/volcengine/"
 else
-  echo "[!] Source plugins/image_gen/volces-engine not found!"
+  echo "[!] Source plugins/image_gen/volcengine not found!"
   exit 1
 fi
 
-if [ -d "plugins/video_gen/volces-engine" ]; then
-  cp -r plugins/video_gen/volces-engine/* "$chosen_home/plugins/video_gen/volces-engine/"
+if [ -d "plugins/video_gen/volcengine" ]; then
+  cp -r plugins/video_gen/volcengine/* "$chosen_home/plugins/video_gen/volcengine/"
 else
-  echo "[!] Source plugins/video_gen/volces-engine not found!"
+  echo "[!] Source plugins/video_gen/volcengine not found!"
   exit 1
 fi
 
@@ -303,6 +321,6 @@ python3 -c "$PYTHON_UPDATER" "$chosen_home/config.yaml" 2>/dev/null || python -c
 }
 
 echo ""
-echo "[+] Volcengine (volces-engine) plugins successfully installed to $chosen_home!"
+echo "[+] Volcengine (volcengine) plugins successfully installed to $chosen_home!"
 echo ""
 show_manual_instructions
