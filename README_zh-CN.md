@@ -44,15 +44,12 @@ Hermes Agent 发现和加载不同类型的扩展采用了两种独立机制：
 这是一款高度定制的图像生成后端，重点实现了以下技术细节：
 - **状态透明化（解决黑盒状态）**：在插件加载与执行时，直接向标准错误输出（`sys.stderr`）打印显式的初始化与执行日志（例如 `[volcengine] ...`），方便开发者了解插件的工作状态。
 - **企业级端点适配**：使用企业方案专用的 `/api/plan/v3/images/generations` API 路径。
-- **动态分辨率映射**：
-  - **Seedream 5.0**（如 `doubao-seedream-5.0-lite`、`doubao-seedream-5.0-pro`）：要求高分辨率（$\ge 3.68$ 百万像素），防止 API 校验失败：
-    - `landscape` (横屏) $\rightarrow$ `2560x1440`
-    - `square` (方形) $\rightarrow$ `2048x2048`
-    - `portrait` (竖屏) $\rightarrow$ `1440x2560`
-  - **Seedream 4.0**（如 `doubao-seedream-4.0`）：自动降级为标准分辨率：
-    - `landscape` (横屏) $\rightarrow$ `1792x1024`
-    - `square` (方形) $\rightarrow$ `1024x1024`
-    - `portrait` (竖屏) $\rightarrow$ `1024x1792`
+- **高分辨率统一映射**：
+  为了防止在企业级自定义接入点（如 `ep-xxxxxx-xxxx`）上使用时因判定模型版本非 5.0 触发低分辨率导致 API 校验失败（火山引擎要求至少 3,686,400 像素），插件将所有模型（包括 Seedream 4.0 与 5.0 系列）统一硬编码映射为最高画质的百万像素级尺寸：
+  - `landscape` (横屏) $\rightarrow$ `2560x1440`
+  - `square` (方形) $\rightarrow$ `2048x2048`
+  - `portrait` (竖屏) $\rightarrow$ `1440x2560`
+- **自动下载与本地缓存**：若火山引擎 API 忽略了我们请求的 `b64_json` 响应格式，仍然返回在线图片 URL，插件会自动捕获该 URL 并利用 `httpx` 拉取二进制图片数据，完成 Base64 转换并写入本地缓存路径。这保证了与 Hermes 本地缓存机制的完美适配。
 - **超长请求超时**：使用 `httpx.Timeout` 分离了连接超时（10s）与读取超时（120s），防止由于高分辨率图片生成慢而导致网络请求提前超时。
 
 ### 3. 视频生成插件 (`Seedance 2.0`)

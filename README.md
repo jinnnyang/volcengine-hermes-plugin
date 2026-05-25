@@ -44,15 +44,12 @@ Registers a custom LLM provider profile (`volcengine`) pointing to Volcano Engin
 A custom backend that handles:
 - **State Transparency (No Black-Box)**: Visual initialization and execution logs are printed directly to standard error (`sys.stderr`) when loading and calling the plugin so developers always know the plugin's status.
 - **Enterprise Endpoints**: Uses the `/api/plan/v3/images/generations` path required by enterprise plans.
-- **Dynamic Resolution Mappings**:
-  - **Seedream 5.0** (e.g. `doubao-seedream-5.0-lite`, `doubao-seedream-5.0-pro`): Requires high resolutions ($\ge 3.68$ megapixels) to prevent API validation failures:
-    - `landscape` $\rightarrow$ `2560x1440`
-    - `square` $\rightarrow$ `2048x2048`
-    - `portrait` $\rightarrow$ `1440x2560`
-  - **Seedream 4.0** (e.g. `doubao-seedream-4.0`): Falls back to standard resolution options:
-    - `landscape` $\rightarrow$ `1792x1024`
-    - `square` $\rightarrow$ `1024x1024`
-    - `portrait` $\rightarrow$ `1024x1792`
+- **High-Resolution Mappings**:
+  To prevent API validation failures on enterprise custom endpoints (e.g. `ep-xxxxxx-xxxx`), the resolution sizes are unified across all models (Seedream 4.0 and 5.0 alike) to satisfy Volcano Engine's $\ge 3,686,400$ pixel requirement:
+  - `landscape` $\rightarrow$ `2560x1440`
+  - `square` $\rightarrow$ `2048x2048`
+  - `portrait` $\rightarrow$ `1440x2560`
+- **Automatic Downloading & Local Caching**: In case the Volcano Engine API ignores the requested `b64_json` response format and returns a remote URL, the plugin dynamically detects the URL, downloads the image via `httpx`, encodes it to base64, and caches it locally under the profile's image cache directory. This preserves Hermes' local cache consistency.
 - **Timeouts & Reliability**: Separated connect (10s) and read (120s) timeouts using `httpx.Timeout` to prevent premature failures on slow generations.
 
 ### 3. Video Generation Plugin (`Seedance 2.0`)
