@@ -33,7 +33,7 @@ class VolcengineProviderProfile(ProviderProfile):
 
 volcengine_provider = VolcengineProviderProfile(
     name="volcengine",
-    display_name="Volcengine",
+    display_name="Volcengine AI",
     description="ByteDance Volcengine Ark LLM Provider",
     aliases=("volcengine-coding-plan", "volcengine-agent-plan", "doubao", "volces-engine"),
     api_mode="chat_completions",

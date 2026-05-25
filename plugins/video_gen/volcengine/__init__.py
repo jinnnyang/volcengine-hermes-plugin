@@ -68,7 +68,7 @@ class VolcengineVideoGenProvider(VideoGenProvider):
 
     @property
     def display_name(self) -> str:
-        return "Volcengine (Seedance)"
+        return "Volcengine AI (Seedance)"
 
     def is_available(self) -> bool:
         return bool(_get_api_key())
@@ -84,7 +84,7 @@ class VolcengineVideoGenProvider(VideoGenProvider):
 
     def get_setup_schema(self) -> Dict[str, Any]:
         return {
-            "name": "Volcengine (Seedance)",
+            "name": "Volcengine AI (Seedance)",
             "badge": "paid",
             "tag": "Doubao Seedance — ByteDance Volcengine Video Generation",
             "env_vars": [
