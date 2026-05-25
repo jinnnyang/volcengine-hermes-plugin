@@ -33,6 +33,8 @@ class VolcengineProviderProfile(ProviderProfile):
 
 volcengine_provider = VolcengineProviderProfile(
     name="volcengine",
+    display_name="Volcengine",
+    description="ByteDance Volcengine Ark LLM Provider",
     aliases=("volcengine-coding-plan", "volcengine-agent-plan", "doubao", "volces-engine"),
     api_mode="chat_completions",
     env_vars=("VOLCENGINE_API_KEY", "ARK_API_KEY"),

@@ -82,7 +82,7 @@ class VolcengineImageGenProvider(ImageGenProvider):
 
     @property
     def display_name(self) -> str:
-        return "火山引擎 (Seedream)"
+        return "Volcengine (Seedream)"
 
     def is_available(self) -> bool:
         return bool(_get_api_key())
@@ -98,9 +98,9 @@ class VolcengineImageGenProvider(ImageGenProvider):
 
     def get_setup_schema(self) -> Dict[str, Any]:
         return {
-            "name": "火山引擎 (Seedream)",
+            "name": "Volcengine (Seedream)",
             "badge": "paid",
-            "tag": "Doubao Seedream — 字节跳动官方图像生成",
+            "tag": "Doubao Seedream — ByteDance Volcengine Image Generation",
             "env_vars": [
                 {
                     "key": "VOLCENGINE_API_KEY",
