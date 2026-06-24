@@ -1,0 +1,18 @@
+[project]
+name = "volcengine-hermes-plugin"
+version = "0.1.0"
+description = "Volcengine plugin bundle for Hermes Agent"
+requires-python = ">=3.11"
+dependencies = [
+  "httpx>=0.27",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
