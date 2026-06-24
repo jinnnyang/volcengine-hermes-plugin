@@ -21,15 +21,15 @@ logger = logging.getLogger(__name__)
 BASE_URL = "https://ark.cn-beijing.volces.com/api/plan/v3/contents/generations/tasks"
 
 _MODELS: Dict[str, Dict[str, Any]] = {
-    "doubao-seedance-2.0": {
-        "display": "Doubao Seedance 2.0",
+    "doubao-seedance-1.5-pro": {
+        "display": "Doubao Seedance 1.5 Pro",
         "speed": "~2-3m",
-        "strengths": "2.0 视频生成模型，画面流畅度高",
+        "strengths": "1.5 Pro 视频生成模型，默认推荐版本",
         "price": "paid",
     },
 }
 
-DEFAULT_MODEL = "doubao-seedance-2.0"
+DEFAULT_MODEL = "doubao-seedance-1.5-pro"
 
 _TIMEOUT = httpx.Timeout(connect=10.0, read=30.0, write=10.0, pool=10.0)
 DEFAULT_TIMEOUT_SECONDS = 300
@@ -45,7 +45,7 @@ class VolcengineVideoGenProvider(VideoGenProvider):
 
     AGENT GUIDANCE (指引):
     1. Typical Duration (生成耗时):
-       - Doubao Seedance 2.0: ~2 to 3 minutes.
+       - Doubao Seedance 1.5 Pro: ~2 to 3 minutes.
        - Generating video is a long-running task. The tool call will block during this period.
          Please be patient and do not interrupt.
     2. Background Task Polling (任务状态查询):
@@ -105,7 +105,7 @@ class VolcengineVideoGenProvider(VideoGenProvider):
             "min_duration": 1,
             "supports_audio": True,
             "supports_negative_prompt": False,
-            "max_reference_images": 5,
+            "max_reference_images": 1,
         }
 
     def generate(
@@ -141,7 +141,7 @@ class VolcengineVideoGenProvider(VideoGenProvider):
             task_id = res.get("task_id", "unknown")
             res["agent_guidance"] = (
                 "[AGENT GUIDANCE]\n"
-                "- 预计耗时 (Estimated Duration): Doubao Seedance 2.0 视频生成一般需要 2 至 3 分钟。\n"
+                "- 预计耗时 (Estimated Duration): Doubao Seedance 1.5 Pro 视频生成一般需要 2 至 3 分钟。\n"
                 f"- 任务状态 (Task Status): 这是一个长耗时异步任务，但该工具内置了同步轮询机制（已实时查询完毕，Task ID: {task_id}）。当前任务已全部成功完成。\n"
                 "- 自动下载 (Auto-Download): 视频已自动从临时链接下载并缓存在本地文件系统目录，支持离线/后续直接引用。\n"
                 f"- 本地文件 (Local File): 请使用绝对路径展示或引用该视频，如：![视频](file://{video_ref})。\n"
@@ -154,7 +154,7 @@ class VolcengineVideoGenProvider(VideoGenProvider):
                 f"- 失败原因 (Failure Reason): {error}\n"
                 "- 预计耗时 (Estimated Duration): 视频生成本需 2-3 分钟，但由于上述错误已终止。\n"
                 "- 确认与排查 (Verification): 请检查您的 VOLCENGINE_API_KEY / ARK_API_KEY 环境变量配置是否正确，"
-                "并确保选择的 model (如 doubao-seedance-2.0) 在您的 Volcano Engine 账户中已开通并在服务列表中。\n"
+                "并确保选择的 model (如 doubao-seedance-1.5-pro) 在您的 Volcano Engine 账户中已开通并在服务列表中。\n"
                 "- 后续动作 (Next Steps): 修复配置或网络问题后可重新调用该工具。"
             )
         return res

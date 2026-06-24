@@ -28,18 +28,6 @@ _MODELS: Dict[str, Dict[str, Any]] = {
         "strengths": "5.0大模型，生成速度较快",
         "price": "paid",
     },
-    "doubao-seedream-5.0-pro": {
-        "display": "Doubao Seedream 5.0 Pro",
-        "speed": "~25s",
-        "strengths": "5.0大模型，高质量画质",
-        "price": "paid",
-    },
-    "doubao-seedream-4.0": {
-        "display": "Doubao Seedream 4.0",
-        "speed": "~8s",
-        "strengths": "4.0版模型，稳定基础版本",
-        "price": "paid",
-    },
 }
 
 DEFAULT_MODEL = "doubao-seedream-5.0-lite"
@@ -96,6 +84,12 @@ class VolcengineImageGenProvider(ImageGenProvider):
     def default_model(self) -> Optional[str]:
         return DEFAULT_MODEL
 
+    def capabilities(self) -> Dict[str, Any]:
+        return {
+            "modalities": ["text"],
+            "max_reference_images": 0,
+        }
+
     def get_setup_schema(self) -> Dict[str, Any]:
         return {
             "name": "Volcengine AI (Seedream)",
@@ -147,6 +141,26 @@ class VolcengineImageGenProvider(ImageGenProvider):
         prompt = (prompt or "").strip()
         aspect = resolve_aspect_ratio(aspect_ratio)
         model = kwargs.get("model", DEFAULT_MODEL)
+
+        if kwargs.get("image_url") or kwargs.get("reference_image_urls"):
+            return error_response(
+                error="Volcengine Seedream 5.0 Lite is text-to-image only; image_url/reference_image_urls are not supported.",
+                error_type="unsupported_modality",
+                provider="volcengine",
+                model=model,
+                prompt=prompt,
+                aspect_ratio=aspect,
+            )
+
+        if model not in _MODELS:
+            return error_response(
+                error=f"Unsupported Volcengine image model: {model}. Supported model: {DEFAULT_MODEL}",
+                error_type="unsupported_model",
+                provider="volcengine",
+                model=model,
+                prompt=prompt,
+                aspect_ratio=aspect,
+            )
 
         # Print detailed execution info to stderr to resolve black-box issues
         print(f"[volcengine] Calling Image Generation: model={model}, aspect_ratio={aspect}", file=sys.stderr)
