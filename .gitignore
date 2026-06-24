@@ -2,6 +2,7 @@
 implementation_plan.md
 task.md
 walkthrough.md
+.hermes/
 
 # Python cache
 __pycache__/
