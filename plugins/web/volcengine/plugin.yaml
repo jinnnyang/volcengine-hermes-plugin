@@ -1,4 +1,5 @@
-name: web-volcengine
+id: web-search-volcengine
+name: Volcengine Web Search Provider
 version: 0.1.0
 description: Volcengine Doubao Search backend for Hermes web_search.
 author: jinnnyang

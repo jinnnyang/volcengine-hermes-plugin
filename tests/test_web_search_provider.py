@@ -209,8 +209,9 @@ def test_setup_schema_exposes_primary_key_prompt():
 
 
 def test_plugin_manifest_and_register_function():
-    assert PLUGIN_YAML_PATH.read_text(encoding="utf-8").splitlines()[:7] == [
-        "name: web-volcengine",
+    assert PLUGIN_YAML_PATH.read_text(encoding="utf-8").splitlines()[:8] == [
+        "id: web-search-volcengine",
+        "name: Volcengine Web Search Provider",
         "version: 0.1.0",
         "description: Volcengine Doubao Search backend for Hermes web_search.",
         "author: jinnnyang",

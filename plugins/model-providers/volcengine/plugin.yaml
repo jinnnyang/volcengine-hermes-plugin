@@ -1,4 +1,5 @@
-name: volcengine
+id: model-provider-volcengine
+name: Volcengine Model Provider
 kind: model-provider
 version: 0.0.1
 description: "Volcengine Doubao LLM Model Provider (火山引擎方舟 LLM)"

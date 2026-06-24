@@ -1,4 +1,5 @@
-name: volcengine
+id: image-generation-volcengine
+name: Volcengine Image Generation Provider
 kind: backend
 version: 0.0.1
 description: "Volcengine Doubao Seedream Image Generation (火山引擎图像生成). Generates images synchronously (~8-25s). Automatically downloads & saves images to local profile cache."
