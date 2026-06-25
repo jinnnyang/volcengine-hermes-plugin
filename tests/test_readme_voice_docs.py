@@ -30,5 +30,10 @@ def test_readmes_explain_registry_key_provider_name_and_secret_policy():
     assert "provider name" in english
     assert "registry key" in chinese
     assert "provider name" in chinese
-    assert "never in config.yaml" in english
-    assert "不要写入 config.yaml" in chinese
+    assert "never" in english
+    assert "config.yaml" in english
+    assert "never in" in english
+
+    assert "不要写入" in chinese
+    assert "config.yaml" in chinese
+

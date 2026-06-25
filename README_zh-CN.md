@@ -113,19 +113,41 @@ VOLCENGINE_SPEECH_API_KEY=[REDACTED]
 
 ### 手动安装
 
-复制插件文件夹到 Hermes profile：
+复制插件文件夹到你的 Hermes profile 的 `plugins` 目录：
 
 ```bash
-cp -r plugins/_volcengine_common [HERMES_HOME]/plugins/
-cp -r plugins/model-providers/volcengine [HERMES_HOME]/plugins/model-providers/
-cp -r plugins/image_gen/volcengine [HERMES_HOME]/plugins/image_gen/
-cp -r plugins/video_gen/volcengine [HERMES_HOME]/plugins/video_gen/
-cp -r plugins/web/volcengine [HERMES_HOME]/plugins/web/
-cp -r plugins/tts/volcengine [HERMES_HOME]/plugins/tts/
-cp -r plugins/transcription/volcengine [HERMES_HOME]/plugins/transcription/
+# `[HERMES_PROFILE]` 是你的 Hermes profile 路径 (~/.hermes/profiles/<name>):
+cp -r plugins/_volcengine_common [HERMES_PROFILE]/plugins/
+cp -r plugins/model-providers/volcengine [HERMES_PROFILE]/plugins/model-providers/
+cp -r plugins/image_gen/volcengine [HERMES_PROFILE]/plugins/image_gen/
+cp -r plugins/video_gen/volcengine [HERMES_PROFILE]/plugins/video_gen/
+cp -r plugins/web/volcengine [HERMES_PROFILE]/plugins/web/
+cp -r plugins/tts/volcengine [HERMES_PROFILE]/plugins/tts/
+cp -r plugins/transcription/volcengine [HERMES_PROFILE]/plugins/transcription/
 ```
 
-在 `[HERMES_HOME]/config.yaml` 中启用 plugin registry key：
+#### Linux / macOS
+开发模式（从仓库链接到 profile，git pull 后直接生效无需重新复制）：
+```bash
+# 将 `~/projects/volcengine-hermes-plugin` 替换为你克隆仓库的路径：
+for d in _volcengine_common model-providers/volcengine image_gen/volcengine video_gen/volcengine web/volcengine tts/volcengine transcription/volcengine; do
+  ln -sf ~/projects/volcengine-hermes-plugin/plugins/$d ~/.hermes/profiles/devops/plugins/$d
+done
+```
+
+#### Windows (git-bash / MSYS)
+开发模式（从仓库创建目录 junction 到 profile）：
+```bash
+# 将 `C:\Users\yourname\projects\volcengine-hermes-plugin` 替换为你克隆仓库的路径：
+for d in _volcengine_common model-providers/volcengine image_gen/volcengine video_gen/volcengine web/volcengine tts/volcengine transcription/volcengine; do
+  cmd //c mklink /J ^
+C:\\Users\\yourname\\AppData\\Local\\hermes\\profiles\\devops\\plugins\\$d ^
+C:\\Users\\yourname\\projects\\volcengine-hermes-plugin\\plugins\\$d
+done
+```
+如果遇到 "permission denied"，请使用管理员权限打开终端再执行 `mklink`。
+
+在 `[HERMES_PROFILE]/config.yaml` 中启用 plugin registry key：
 
 ```yaml
 plugins:
@@ -138,7 +160,7 @@ plugins:
     - transcription/volcengine
 ```
 
-配置 active providers：
+在 `[HERMES_PROFILE]/config.yaml` 中配置 active providers：
 
 ```yaml
 model:
@@ -149,16 +171,19 @@ web:
 
 image_gen:
   provider: volcengine
-  model: doubao-seedream-5.0-lite
+  volcengine:
+    model: doubao-seedream-5.0-lite
 
 video_gen:
   provider: volcengine
-  model: doubao-seedance-1.5-pro
+  volcengine:
+    model: doubao-seedance-1.5-pro
 
 tts:
   provider: volcengine
   volcengine:
     model: doubao-seed-tts-2.0
+    resource_id: seed-tts-2.0
     voice: zh_female_vv_uranus_bigtts
     format: wav
     sample_rate: 24000
@@ -168,14 +193,20 @@ stt:
   provider: volcengine
   volcengine:
     model: doubao-seed-asr-2.0
+    resource_id: volc.seedasr.sauc.duration
     language: auto
 ```
 
-把 secrets 写入 `[HERMES_HOME]/.env`，不要写入 config.yaml：
+把 secrets 写入 `[HERMES_PROFILE]/.env`，**绝对不要写入 `config.yaml`**：
 
 ```bash
-VOLCENGINE_API_KEY=[REDACTED]
-VOLCENGINE_SPEECH_API_KEY=[REDACTED]
+# 至少需要以下其中一个：
+VOLCENGINE_API_KEY=[你的-...]
+# 语音 TTS/STT 推荐使用专用 key：
+VOLCENGINE_SPEECH_API_KEY=[你的-speech-key]
+# 如果没有 speech key，ARK API key 也可以兼容：
+ARK_API_KEY=[你的-ark-key]
+```
 ```
 
 ## 端点模式
@@ -226,25 +257,35 @@ web:
 
 ### 文本转语音 TTS
 
-TTS provider 通过 `ctx.register_tts_provider(...)` 注册到 Hermes，通过以下配置选择：
+TTS provider 通过 `ctx.register_tts_provider(...)` 注册到 Hermes，并通过以下配置选择：
 
 ```yaml
 tts:
   provider: volcengine
 ```
 
-默认值：
+本插件提供三个 TTS 端点（与 Agent Plan 对齐）：
+
+| 端点类型 | 协议 | URL | 推荐场景 |
+|----------|------|-----|----------|
+| 单向 HTTP | HTTP POST | `https://openspeech.bytedance.com/api/v3/plan/tts/unidirectional` | 非流式合成，默认选项。 |
+| 双向流式 | WebSocket | `wss://openspeech.bytedance.com/api/v3/plan/tts/bidirection` | 实时流式合成。 |
+| 流式输出 | WebSocket | `wss://openspeech.bytedance.com/api/v3/plan/tts/unidirectional/stream` | 单向请求，流式输出合成结果。 |
+
+默认配置：
 
 ```text
 model: doubao-seed-tts-2.0
 resource id: seed-tts-2.0
 voice: zh_female_vv_uranus_bigtts
 format: wav
+sample_rate: 24000
+endpoint: 单向 HTTP
 ```
 
 ### 语音转文字 STT / transcription
 
-STT provider 通过 `ctx.register_transcription_provider(...)` 注册到 Hermes，通过以下配置选择：
+STT provider 通过 `ctx.register_transcription_provider(...)` 注册到 Hermes，并通过以下配置选择：
 
 ```yaml
 stt:
@@ -252,11 +293,19 @@ stt:
   provider: volcengine
 ```
 
-默认值：
+本插件提供两个 ASR 端点（均为 WebSocket 协议，与 Agent Plan 对齐）：
+
+| 端点类型 | URL | 推荐场景 |
+|----------|-----|----------|
+| 单流接口 (nostream) | `wss://openspeech.bytedance.com/api/v3/plan/sauc/bigmodel_nostream` | 准确率优先场景：录制完整音频后发送，上传完成统一返回结果。Hermes 当前 voice dictation（先录音后转写）默认选择此端点。 |
+| 双流接口 (async) | `wss://openspeech.bytedance.com/api/v3/plan/sauc/bigmodel_async` | 低延迟实时场景：边发送音频边获取增量识别结果，为未来 Hermes 实时语音接口预留。 |
+
+默认配置：
 
 ```text
 model: doubao-seed-asr-2.0
 resource id: volc.seedasr.sauc.duration
+endpoint: 单流 (bigmodel_nostream)
 language: auto
 ```
 

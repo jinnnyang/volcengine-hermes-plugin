@@ -113,19 +113,41 @@ After installation, restart Hermes Agent or reset the session so newly enabled p
 
 ### Manual installation
 
-Copy plugin folders to your Hermes profile:
+Copy plugin folders to your Hermes profile's `plugins` directory:
 
 ```bash
-cp -r plugins/_volcengine_common [HERMES_HOME]/plugins/
-cp -r plugins/model-providers/volcengine [HERMES_HOME]/plugins/model-providers/
-cp -r plugins/image_gen/volcengine [HERMES_HOME]/plugins/image_gen/
-cp -r plugins/video_gen/volcengine [HERMES_HOME]/plugins/video_gen/
-cp -r plugins/web/volcengine [HERMES_HOME]/plugins/web/
-cp -r plugins/tts/volcengine [HERMES_HOME]/plugins/tts/
-cp -r plugins/transcription/volcengine [HERMES_HOME]/plugins/transcription/
+# Where `[HERMES_PROFILE]` is the path to your Hermes profile (~/.hermes/profiles/<name>):
+cp -r plugins/_volcengine_common [HERMES_PROFILE]/plugins/
+cp -r plugins/model-providers/volcengine [HERMES_PROFILE]/plugins/model-providers/
+cp -r plugins/image_gen/volcengine [HERMES_PROFILE]/plugins/image_gen/
+cp -r plugins/video_gen/volcengine [HERMES_PROFILE]/plugins/video_gen/
+cp -r plugins/web/volcengine [HERMES_PROFILE]/plugins/web/
+cp -r plugins/tts/volcengine [HERMES_PROFILE]/plugins/tts/
+cp -r plugins/transcription/volcengine [HERMES_PROFILE]/plugins/transcription/
 ```
 
-Enable plugin registry keys in `[HERMES_HOME]/config.yaml`:
+#### Linux / macOS
+For development (link from repo to profile so changes are live after git pull):
+```bash
+# Replace `~/projects/volcengine-hermes-plugin` with your repo clone path:
+for d in _volcengine_common model-providers/volcengine image_gen/volcengine video_gen/volcengine web/volcengine tts/volcengine transcription/volcengine; do
+  ln -sf ~/projects/volcengine-hermes-plugin/plugins/$d ~/.hermes/profiles/devops/plugins/$d
+done
+```
+
+#### Windows (git-bash / MSYS)
+For development (junction from repo to profile):
+```bash
+# Replace `C:\Users\yourname\projects\volcengine-hermes-plugin` with your repo clone path:
+for d in _volcengine_common model-providers/volcengine image_gen/volcengine video_gen/volcengine web/volcengine tts/volcengine transcription/volcengine; do
+  cmd //c mklink /J ^
+C:\\Users\\yourname\\AppData\\Local\\hermes\\profiles\\devops\\plugins\\$d ^
+C:\\Users\\yourname\\projects\\volcengine-hermes-plugin\\plugins\\$d
+done
+```
+(Use elevated terminal for `mklink` if you get "permission denied".)
+
+Enable plugin registry keys in `[HERMES_PROFILE]/config.yaml`:
 
 ```yaml
 plugins:
@@ -138,7 +160,7 @@ plugins:
     - transcription/volcengine
 ```
 
-Configure active providers:
+Configure active providers in `[HERMES_PROFILE]/config.yaml`:
 
 ```yaml
 model:
@@ -149,16 +171,19 @@ web:
 
 image_gen:
   provider: volcengine
-  model: doubao-seedream-5.0-lite
+  volcengine:
+    model: doubao-seedream-5.0-lite
 
 video_gen:
   provider: volcengine
-  model: doubao-seedance-1.5-pro
+  volcengine:
+    model: doubao-seedance-1.5-pro
 
 tts:
   provider: volcengine
   volcengine:
     model: doubao-seed-tts-2.0
+    resource_id: seed-tts-2.0
     voice: zh_female_vv_uranus_bigtts
     format: wav
     sample_rate: 24000
@@ -168,14 +193,21 @@ stt:
   provider: volcengine
   volcengine:
     model: doubao-seed-asr-2.0
+    resource_id: volc.seedasr.sauc.duration
     language: auto
 ```
 
-Put secrets in `[HERMES_HOME]/.env`, never in config.yaml:
+Put secrets in `[HERMES_PROFILE]/.env`, **never in `config.yaml`**:
 
 ```bash
-VOLCENGINE_API_KEY=[REDACTED]
-VOLCENGINE_SPEECH_API_KEY=[REDACTED]
+# At least one of these is required:
+VOLCENGINE_API_KEY=[your-ark-api-key]
+# Speech TTS/STT prefers this dedicated key:
+VOLCENGINE_SPEECH_API_KEY=[your-speech-api-key]
+# ARK API key also works if speech isn't available:
+ARK_API_KEY=[your-ark-api-key]
+```
+
 ```
 
 ## Endpoint modes
@@ -233,6 +265,14 @@ tts:
   provider: volcengine
 ```
 
+Three TTS endpoints are provided (aligned with Agent Plan):
+
+| Endpoint | Protocol | URL | Recommended for |
+|----------|----------|-----|------------------|
+| Unidirectional HTTP | HTTP POST | `https://openspeech.bytedance.com/api/v3/plan/tts/unidirectional` | Non-streaming synthesis, default. |
+| Bidirectional streaming | WebSocket | `wss://openspeech.bytedance.com/api/v3/plan/tts/bidirection` | Real-time streaming synthesis. |
+| Streaming output | WebSocket | `wss://openspeech.bytedance.com/api/v3/plan/tts/unidirectional/stream` | Unidirectional request with streaming output. |
+
 Defaults:
 
 ```text
@@ -240,6 +280,8 @@ model: doubao-seed-tts-2.0
 resource id: seed-tts-2.0
 voice: zh_female_vv_uranus_bigtts
 format: wav
+sample_rate: 24000
+endpoint: unidirectional HTTP
 ```
 
 ### Speech to text / transcription
@@ -252,11 +294,19 @@ stt:
   provider: volcengine
 ```
 
+Two ASR endpoints are provided (both WebSocket, aligned with Agent Plan):
+
+| Endpoint | URL | Recommended for |
+|----------|-----|------------------|
+| Single-stream (nostream) | `wss://openspeech.bytedance.com/api/v3/plan/sauc/bigmodel_nostream` | Accuracy-first scenarios: send full audio after recording, unified result returned when upload completes. This is the default for Hermes voice dictation (record-first then transcribe). |
+| Async / dual-stream | `wss://openspeech.bytedance.com/api/v3/plan/sauc/bigmodel_async` | Low-latency real-time scenarios: stream audio and get incremental recognition results. Available for future Hermes real-time voice interfaces. |
+
 Defaults:
 
 ```text
 model: doubao-seed-asr-2.0
 resource id: volc.seedasr.sauc.duration
+endpoint: single-stream (bigmodel_nostream)
 language: auto
 ```
 
