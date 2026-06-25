@@ -4,16 +4,37 @@
 
 ## 1. 优先级原则
 
-已确认优先级：
+已确认优先级，结合当前状态更新为：
 
 ```text
-模型与套餐适配 > 测试保障 > 代码结构质量 > 安装体验
+已完成核心能力稳定化 > TTS Provider > STT Provider > 安装体验 > 发布文档 > 后续增强
 ```
 
 搜索能力是明确目标，但它依赖 Hermes Web Search Provider 机制和豆包搜索 direct API schema，因此单独拆为 P1/P2 交界的独立任务包：
 
 - 豆包搜索作为 Hermes `web_search` backend：P1，属于核心能力。
 - 专业数据集搜索：P2/P3，等 API 形态进一步确认后实现。
+
+语音能力是本轮新增明确目标。Hermes 已有 `TTSProvider` 与 `TranscriptionProvider` 插件扩展点，因此语音能力应拆为独立 P2/P3 交界任务包：
+
+- 豆包 TTS 作为 Hermes `tts.provider=volcengine` backend：P2，第一版发布门槛。
+- 豆包 ASR/STT 作为 Hermes `stt.provider=volcengine` backend：P2，第一版发布门槛；协议复杂度高于 TTS，但不能推迟到第一版之后。
+- TTS/ASR 的真实 API smoke test：必须用户明确授权并提供测试 key 后执行。
+
+## 当前完成状态快照
+
+```text
+P0 开发基线与测试骨架：完成
+P1-A Endpoint 与套餐适配：完成
+P1-B 动态模型列表与用户选择：核心完成
+P1-C 图像与视频关键适配：完成
+P1-D Volcengine Web Search Provider：完成
+P2 测试保障扩展：部分完成，仍需安装/语音/发布前测试补齐
+P2 代码结构质量：部分完成，共享 resolver 已抽取，后续可继续整理错误处理和安装体验
+P3 安装体验：待完成
+P3 文档发布：待完成
+Voice-P1/P2 语音 Provider：第一版发布前必须完成 TTS + STT
+```
 
 ## 2. 阶段边界
 
@@ -23,6 +44,8 @@
 | P1 | Endpoint 与模型选择 | 支持 Agent/Coding/API，动态模型与手动 model id | 是 |
 | P1 | 图像/视频关键适配 | 保持多模态插件可用并符合已确认模型 | 是 |
 | P1 | Volcengine Web Search Provider | 豆包搜索接入 Hermes `web_search` backend | 是 |
+| P2 | Volcengine TTS Provider | 豆包语音合成接入 Hermes `text_to_speech` | 是，第一版发布门槛 |
+| P2 | Volcengine STT Provider | 豆包语音识别接入 Hermes transcription pipeline | 是，第一版发布门槛 |
 | P2 | 测试保障扩展 | 让核心能力可 mock 验证 | 是 |
 | P2 | 代码结构质量 | 抽取共享配置、错误处理、重复逻辑 | 否，但应在功能稳定后做 |
 | P3 | 安装体验 | install.sh、dry-run、backup、setup 指引 | 否，但发布前必须完成 |
@@ -188,6 +211,8 @@ tests/test_model_provider_dynamic_models.py
 tests/test_image_provider_payload.py
 tests/test_video_provider_payload.py
 tests/test_web_search_provider.py
+tests/test_tts_provider.py
+tests/test_transcription_provider.py
 tests/test_install_script.py
 ```
 
@@ -219,7 +244,55 @@ uv run pytest -q
 - 不改变公开配置接口。
 - 不破坏现有 alias。
 
-## 10. P3：安装体验
+## 10. P2/P3：Volcengine 语音 Provider
+
+### 定位
+
+语音接入不应做普通 tool，而应注册 Hermes backend provider：
+
+```text
+plugins/tts/volcengine
+plugins/transcription/volcengine
+```
+
+### TTS 任务
+
+1. 写 TTS provider 失败测试。
+2. 实现 `VolcengineTTSProvider`。
+3. 通过 `ctx.register_tts_provider()` 注册。
+4. 默认 model：`doubao-seed-tts-2.0`。
+5. 默认 Resource-Id：`seed-tts-2.0`。
+6. 默认 voice：`zh_female_vv_uranus_bigtts`。
+7. 默认输出格式：`wav`。
+8. 首版使用 HTTP POST：`https://openspeech.bytedance.com/api/v3/plan/tts/unidirectional`。
+9. mock chunked JSON line + base64 音频写入 `output_path`。
+
+### STT 任务
+
+1. 写 transcription provider 失败测试。
+2. 实现 `VolcengineTranscriptionProvider`。
+3. 通过 `ctx.register_transcription_provider()` 注册。
+4. 默认 model：`doubao-seed-asr-2.0`。
+5. 默认 Resource-Id：`volc.seedasr.sauc.duration`。
+6. 默认 language：自动识别。
+7. WebSocket 客户端依赖：`websockets`。
+8. 首版使用 WebSocket 单流：`wss://openspeech.bytedance.com/api/v3/plan/sauc/bigmodel_nostream`。
+9. 单独封装和测试 WebSocket 二进制协议。
+10. 必要时通过 ffmpeg 转为 mono/pcm_s16le/16000Hz/WAV。
+
+### 验收
+
+- `tts.provider=volcengine` 时 Hermes `text_to_speech` 可调度到插件。
+- `stt.provider=volcengine` 时 Hermes transcription pipeline 可调度到插件。
+- mock 测试不依赖真实 API key。
+- 按 TDD 顺序推进：先写 TTS 测试再实现 TTS，再写 STT 测试再实现 STT。
+- 真实授权后 TTS→STT roundtrip 通过：TTS 生成 wav，STT 转写文本与原文相等。
+- 真实 API smoke test 仅在用户明确授权后执行。
+- 第一版发布前 TTS 与 STT 都必须完成，不能只完成 TTS 后发布。
+
+详细方案：[`12-voice-provider-plan.md`](12-voice-provider-plan.md)。
+
+## 11. P3：安装体验
 
 ### 目标
 
@@ -231,10 +304,14 @@ uv run pytest -q
 2. `install.sh --base-url URL`。
 3. `install.sh --enable-web-search`。
 4. `install.sh --set-default-web-search`。
-5. `install.sh --dry-run`。
-6. 修改 config 前自动备份。
-7. secrets 写入 `.env` 或提示用户设置，不写入 `config.yaml`。
-8. 输出后续命令和验证方式。
+5. `install.sh --enable-tts`。
+6. `install.sh --set-default-tts`。
+7. `install.sh --enable-stt`。
+8. `install.sh --set-default-stt`。
+9. `install.sh --dry-run`。
+10. 修改 config 前自动备份。
+11. secrets 写入 `.env` 或提示用户设置，不写入 `config.yaml`。
+12. 输出后续命令和验证方式。
 
 ### 验收
 
@@ -242,7 +319,7 @@ uv run pytest -q
 - 实际安装会备份旧配置。
 - 可以配置 web_search backend。
 
-## 11. P3：README 与发布文档
+## 12. P3：README 与发布文档
 
 ### 任务
 
@@ -253,8 +330,9 @@ uv run pytest -q
 5. 加手动 model id 示例。
 6. 加图像/视频模型说明。
 7. 加 web_search backend 使用说明。
-8. 加常见错误码。
-9. 加卸载方式。
+8. 加 TTS / STT provider 使用说明。
+9. 加常见错误码。
+10. 加卸载方式。
 
 ### 验收
 
@@ -264,8 +342,9 @@ uv run pytest -q
 2. 选择 endpoint mode。
 3. 选择/输入模型。
 4. 启用 web search backend。
+5. 启用 TTS / STT provider。
 
-## 12. P4：专业数据集搜索
+## 13. P4：专业数据集搜索
 
 ### 定位
 
@@ -281,7 +360,7 @@ volcengine_dataset_search
 volcengine_harness_search
 ```
 
-## 13. 建议提交顺序
+## 14. 建议提交顺序
 
 1. `docs: add volcengine hermes refactor plan`
 2. `test: add volcengine config resolver tests`
@@ -290,6 +369,8 @@ volcengine_harness_search
 5. `feat: add dynamic volcengine model discovery`
 6. `feat: align volcengine image and video defaults`
 7. `feat: add volcengine web search provider`
-8. `test: cover installer and provider setup flows`
-9. `refactor: extract shared volcengine configuration helpers`
-10. `docs: update user-facing volcengine plugin setup guides`
+8. `feat: add volcengine tts provider`
+9. `feat: add volcengine transcription provider`
+10. `test: cover installer and provider setup flows`
+11. `refactor: extract shared volcengine configuration helpers`
+12. `docs: update user-facing volcengine plugin setup guides`

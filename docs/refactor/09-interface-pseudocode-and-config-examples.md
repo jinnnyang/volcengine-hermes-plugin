@@ -64,6 +64,10 @@ def resolve_volcengine_search_api_key() -> str | None:
         "VOLCENGINE_API_KEY",
         "ARK_API_KEY",
     )
+
+
+def resolve_volcengine_speech_api_key() -> str | None:
+    return first_env("VOLCENGINE_SPEECH_API_KEY", "VOLCENGINE_API_KEY", "ARK_API_KEY")
 ```
 
 ## 3. Dynamic models
@@ -271,6 +275,20 @@ plugins:
 
 web:
   search_backend: volcengine
+
+tts:
+  provider: volcengine
+  volcengine:
+    model: doubao-seed-tts-2.0
+    voice: zh_female_vv_uranus_bigtts
+    format: wav
+
+stt:
+  enabled: true
+  provider: volcengine
+  volcengine:
+    model: doubao-seed-asr-2.0
+    language: auto
 ```
 
 `.env`：
@@ -279,6 +297,7 @@ web:
 VOLCENGINE_PLAN_MODE=agent
 VOLCENGINE_API_KEY=...
 VOLCENGINE_SEARCH_API_KEY=...
+VOLCENGINE_SPEECH_API_KEY=...
 ```
 
 ### Coding Plan
@@ -331,8 +350,8 @@ ARK_API_KEY=...
 ## 10. install.sh example commands
 
 ```bash
-# Install everything with Agent Plan defaults
-./install.sh --mode agent --enable-model --enable-image --enable-video --enable-web-search
+# Install everything needed for the first public release with Agent Plan defaults
+./install.sh --mode agent --enable-model --enable-image --enable-video --enable-web-search --enable-tts --enable-stt
 
 # Coding Plan only, no multimodal defaults
 ./install.sh --mode coding --enable-model
@@ -344,6 +363,6 @@ ARK_API_KEY=...
   --enable-web-search \
   --set-default-web-search
 
-# Preview changes
-./install.sh --mode agent --enable-web-search --dry-run
+# Preview first-release defaults
+./install.sh --mode agent --enable-web-search --enable-tts --enable-stt --dry-run
 ```

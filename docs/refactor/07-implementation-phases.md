@@ -4,17 +4,19 @@
 
 已确认：重构不能在 `main` 分支直接进行。
 
-建议分支：
+当前重构分支：
 
 ```bash
-git checkout -b refactor/volcengine-plan-compat
+git checkout refactor/volcengine-hermes-next
 ```
 
-当前阶段：只撰写和完善方案，不进入代码实现，直到用户确认。
+当前阶段：P0/P1 核心能力已完成，本轮回到方案编辑状态，把当前完成状态和语音 provider 插件方向同步进规划；下一步进入 Voice-P1 + Voice-P2，完成 TTS 与 STT 后再进入第一版发布收尾。
 
 每个阶段建议独立提交，便于回滚和 review。
 
 ## Phase 1：基础兼容与 endpoint 模式
+
+状态：**已完成**。
 
 目标：先让现有 provider 正确支持 Agent/Coding/API 三种模式。
 
@@ -37,6 +39,8 @@ git checkout -b refactor/volcengine-plan-compat
 
 ## Phase 2：动态模型列表与用户选择
 
+状态：**核心已完成**。
+
 目标：让 Hermes 能获取动态模型列表，同时允许用户手动输入。
 
 任务：
@@ -55,6 +59,8 @@ git checkout -b refactor/volcengine-plan-compat
 
 ## Phase 3：图像和视频 provider 更新
 
+状态：**已完成**。
+
 目标：更新多模态默认模型和 payload。
 
 任务：
@@ -71,6 +77,8 @@ git checkout -b refactor/volcengine-plan-compat
 - 视频 payload 测试通过。
 
 ## Phase 4：Volcengine Web Search Provider
+
+状态：**已完成**。
 
 目标：实现豆包搜索作为 Hermes `web_search` backend。
 
@@ -96,7 +104,40 @@ git checkout -b refactor/volcengine-plan-compat
 - `web_search` 返回 `data.web`。
 - API 错误映射清晰。
 
-## Phase 5：安装脚本与公开用户体验
+## Phase 5：Volcengine 语音 Provider
+
+状态：**已确认纳入第一版发布门槛，TTS + STT 都完成后再发布第一版**。
+
+目标：把豆包语音合成与语音识别注册为 Hermes 标准 TTS / STT backend。
+
+任务：
+
+1. 新增 `plugins/tts/volcengine`。
+2. 实现 `VolcengineTTSProvider` 并通过 `ctx.register_tts_provider()` 注册。
+3. TTS 首版使用 HTTP POST 接口：`https://openspeech.bytedance.com/api/v3/plan/tts/unidirectional`。
+4. TTS Resource-Id 默认 `seed-tts-2.0`，model 默认 `doubao-seed-tts-2.0`，voice 默认 `zh_female_vv_uranus_bigtts`，输出格式默认 `wav`。
+5. 新增 `plugins/transcription/volcengine`。
+6. 实现 `VolcengineTranscriptionProvider` 并通过 `ctx.register_transcription_provider()` 注册。
+7. STT 首版使用 WebSocket 单流接口：`wss://openspeech.bytedance.com/api/v3/plan/sauc/bigmodel_nostream`。
+8. STT Resource-Id 默认 `volc.seedasr.sauc.duration`，model 默认 `doubao-seed-asr-2.0`，language 默认自动识别，WebSocket 客户端使用 `websockets`。
+9. 支持 API Key 优先级：
+   - `VOLCENGINE_SPEECH_API_KEY`
+   - `VOLCENGINE_API_KEY`
+   - `ARK_API_KEY`
+10. 增加 mock 测试，不默认跑真实 API；按 TDD 顺序先写 TTS 测试再实现 TTS，再写 STT 测试再实现 STT。
+
+验收：
+
+- `tts.provider=volcengine` 时 `text_to_speech` 写出音频文件。
+- `stt.provider=volcengine` 时语音转写返回 Hermes 标准 envelope。
+- 请求头包含 `X-Api-Key` 与正确的 `X-Api-Resource-Id`。
+- 真实授权后 TTS→STT roundtrip 通过：TTS 生成 wav，STT 转写文本与原文相等。
+- 真实 API smoke test 仅在用户明确授权并提供测试 key 后执行。
+- 第一版发布前必须同时满足 TTS 与 STT 的 mock 测试、安装配置和 README 使用说明。
+
+详细方案见 [`12-voice-provider-plan.md`](12-voice-provider-plan.md)。
+
+## Phase 6：安装脚本与公开用户体验
 
 目标：让其他用户能顺利安装和配置。
 
@@ -106,17 +147,19 @@ git checkout -b refactor/volcengine-plan-compat
 2. 支持 `--mode agent|coding|api`。
 3. 支持 `--base-url`。
 4. 支持 `--enable-web-search`。
-5. 支持 `--dry-run`。
-6. 修改配置前备份。
-7. 重复运行 idempotent。
+5. 支持 `--enable-tts` / `--enable-stt`。
+6. 支持 `--dry-run`。
+7. 修改配置前备份。
+8. 重复运行 idempotent。
 
 验收：
 
 - 临时 profile 测试通过。
 - 真实 profile dry-run 输出正确。
 - 不覆盖用户已有配置。
+- 可同时配置 `tts.provider=volcengine` 与 `stt.provider=volcengine`。
 
-## Phase 6：测试体系
+## Phase 7：测试体系
 
 目标：所有核心行为可自动验证。
 
@@ -124,8 +167,9 @@ git checkout -b refactor/volcengine-plan-compat
 
 1. 引入 pytest。
 2. 增加 mock HTTP 测试。
-3. 增加 install script 测试。
-4. 可选增加 GitHub Actions。
+3. 增加语音 provider mock 测试。
+4. 增加 install script 测试。
+5. 可选增加 GitHub Actions。
 
 验收：
 
@@ -135,7 +179,7 @@ uv run pytest
 
 全部通过。
 
-## Phase 7：文档发布
+## Phase 8：文档发布
 
 目标：让公开用户看 README 即可使用。
 
@@ -145,16 +189,19 @@ uv run pytest
 2. 更新中文 README。
 3. 新增配置示例。
 4. 新增搜索 backend 使用说明。
-5. 新增常见错误码。
-6. 新增卸载说明。
+5. 新增语音 TTS / STT provider 使用说明。
+6. 新增常见错误码。
+7. 新增卸载说明。
 
 验收：
 
 - 新用户能从 README 完成安装。
 - Agent Plan / Coding Plan / Ark API 三种路径说明清楚。
 - 搜索能力说明为 Hermes `web_search` backend，不误导成 MCP 主线。
+- 语音能力说明为 Hermes TTS / STT provider，不误导成普通 tool。
+- 第一版发布说明中 TTS 与 STT 均为已支持能力，而不是 roadmap。
 
-## Phase 8：后续增强
+## Phase 9：后续增强
 
 候选增强：
 
@@ -164,6 +211,8 @@ uv run pytest
 4. 图像/视频模型动态列表。
 5. 更完整的 `hermes setup` 集成体验。
 6. 打包为 pip plugin / 插件 registry。
+7. TTS WebSocket 双向/单向流式支持。
+8. ASR WebSocket 双流实时识别支持。
 
 ## 建议提交边界
 
@@ -174,8 +223,10 @@ uv run pytest
 | commit 3 | model provider dynamic models + tests |
 | commit 4 | image/video provider updates + tests |
 | commit 5 | web search provider + tests |
-| commit 6 | install script improvements + tests |
-| commit 7 | README updates |
+| commit 6 | tts provider + tests |
+| commit 7 | stt provider + tests |
+| commit 8 | install script improvements + tests |
+| commit 9 | README updates |
 
 ## 风险控制
 

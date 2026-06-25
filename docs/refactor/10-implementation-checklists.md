@@ -1,6 +1,18 @@
 # 10. 实施检查清单
 
-本文件用于后续真正开始编码时逐项勾选。当前不执行实现。
+本文件用于后续真正开始编码或收尾时逐项勾选。当前 P0/P1 核心能力已经完成，本轮将 checklist 调整为“当前状态 + 后续语音 provider / 安装 / 文档”视角。
+
+## 当前完成状态快照
+
+- [x] 建立 `pyproject.toml` 与 pytest 测试入口。
+- [x] 建立 `tests/` 目录。
+- [x] Endpoint resolver 支持 Agent/Coding/API/custom base URL。
+- [x] model/image/video/web provider 接入共享 resolver。
+- [x] model provider 支持 `/models` 动态拉取与 fallback。
+- [x] 图像默认/列表收窄到 `doubao-seedream-5.0-lite`。
+- [x] 视频默认模型为 `doubao-seedance-1.5-pro`。
+- [x] Web Search Provider 接入豆包搜索 direct API。
+- [x] 当前测试命令 `uv run pytest -q` 通过。
 
 ## 全局检查
 
@@ -72,7 +84,11 @@
 - [ ] `--enable-image`。
 - [ ] `--enable-video`。
 - [ ] `--enable-web-search`。
+- [ ] `--enable-tts`。
+- [ ] `--enable-stt`。
 - [ ] `--set-default-web-search`。
+- [ ] `--set-default-tts`。
+- [ ] `--set-default-stt`。
 - [ ] `--no-config`。
 - [ ] `--dry-run`。
 - [ ] 修改前备份。
@@ -88,8 +104,44 @@
 - [ ] 添加 image provider 测试。
 - [ ] 添加 video provider 测试。
 - [ ] 添加 web search provider 测试。
+- [ ] 添加 tts provider 测试。
+- [ ] 添加 transcription provider 测试。
 - [ ] 添加 install.sh 测试。
 - [ ] 可选添加 GitHub Actions。
+
+## Phase 6.5：语音 Provider
+
+发布策略：第一版发布前必须完成 TTS + STT 两个 provider；不能只完成 TTS 后发布第一版。
+
+- [ ] 新建 `plugins/tts/volcengine/plugin.yaml`。
+- [ ] 新建 `plugins/tts/volcengine/__init__.py`。
+- [ ] 新建 `plugins/tts/volcengine/provider.py`。
+- [ ] TTS provider name 为 `volcengine`。
+- [ ] TTS display name 为 `Volcengine Doubao TTS`。
+- [ ] TTS Resource-Id 默认 `seed-tts-2.0`。
+- [ ] TTS model 默认 `doubao-seed-tts-2.0`。
+- [ ] TTS voice 默认 `zh_female_vv_uranus_bigtts`。
+- [ ] TTS 输出格式默认 `wav`。
+- [ ] TTS HTTP endpoint 默认 `https://openspeech.bytedance.com/api/v3/plan/tts/unidirectional`。
+- [ ] TTS 请求头包含 `X-Api-Key`。
+- [ ] TTS 请求头包含 `X-Api-Resource-Id: seed-tts-2.0`。
+- [ ] TTS chunked base64 响应能写入 output_path。
+- [ ] 新建 `plugins/transcription/volcengine/plugin.yaml`。
+- [ ] 新建 `plugins/transcription/volcengine/__init__.py`。
+- [ ] 新建 `plugins/transcription/volcengine/provider.py`。
+- [ ] STT provider name 为 `volcengine`。
+- [ ] STT display name 为 `Volcengine Doubao ASR`。
+- [ ] STT Resource-Id 默认 `volc.seedasr.sauc.duration`。
+- [ ] STT model 默认 `doubao-seed-asr-2.0`。
+- [ ] STT language 默认自动识别。
+- [ ] STT WebSocket 客户端使用 `websockets`。
+- [ ] STT WebSocket endpoint 默认 `wss://openspeech.bytedance.com/api/v3/plan/sauc/bigmodel_nostream`。
+- [ ] STT 需要时通过 ffmpeg 转为 mono/pcm_s16le/16000Hz/WAV。
+- [ ] STT 成功结果映射为 Hermes transcription envelope。
+- [ ] 先写 TTS 测试，再实现 TTS provider。
+- [ ] 先写 STT 测试，再实现 STT provider。
+- [ ] TTS + STT 完成后执行 roundtrip smoke test：TTS 生成 wav，再交给 STT，转写文本与原文相等则通过。
+- [ ] 真实 API smoke test 仅在用户明确授权后执行。
 
 ## Phase 7：文档
 
@@ -100,10 +152,17 @@
 - [ ] 加手动 model id 说明。
 - [ ] 加图像/视频模型说明。
 - [ ] 加 web_search backend 说明。
+- [ ] 加 TTS / STT provider 说明。
 - [ ] 加错误码说明。
 - [ ] 加卸载说明。
 
 ## 发布前检查
+
+第一版发布门槛：
+
+- [ ] TTS provider 已实现、测试通过、README 已说明。
+- [ ] STT provider 已实现、测试通过、README 已说明。
+- [ ] 安装脚本可同时启用 TTS 与 STT。
 
 ```bash
 git status --short
