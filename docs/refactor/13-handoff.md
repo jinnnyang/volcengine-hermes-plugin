@@ -275,8 +275,8 @@ plugins/tts/volcengine/provider.py
 TTS manifest 建议：
 
 ```yaml
-id: tts-volcengine
-name: Volcengine TTS Provider
+id: text-to-speech-volcengine
+name: Volcengine Text to Speech Provider
 version: 0.1.0
 description: Volcengine Doubao Seed TTS backend for Hermes text_to_speech.
 author: jinnnyang
@@ -299,8 +299,8 @@ plugins/transcription/volcengine/protocol.py
 STT manifest 建议：
 
 ```yaml
-id: transcription-volcengine
-name: Volcengine Speech-to-Text Provider
+id: speech-to-text-volcengine
+name: Volcengine Speech to Text Provider
 version: 0.1.0
 description: Volcengine Doubao Seed ASR backend for Hermes transcription.
 author: jinnnyang

@@ -1,0 +1,10 @@
+id: speech-to-text-volcengine
+name: Volcengine Speech to Text Provider
+version: 0.1.0
+description: Volcengine Doubao Seed ASR backend for Hermes transcription.
+author: jinnnyang
+kind: backend
+requires_env:
+  - VOLCENGINE_SPEECH_API_KEY
+provides_transcription_providers:
+  - volcengine

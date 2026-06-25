@@ -42,3 +42,18 @@ def resolve_volcengine_base_url() -> str:
 def resolve_volcengine_endpoint(suffix: str) -> str:
     """Join the resolved base URL with an endpoint suffix."""
     return resolve_volcengine_base_url().rstrip("/") + "/" + suffix.lstrip("/")
+
+
+def resolve_volcengine_speech_api_key() -> str:
+    """Resolve the API key for Volcengine speech providers.
+
+    Precedence:
+    1. VOLCENGINE_SPEECH_API_KEY, the dedicated speech key.
+    2. VOLCENGINE_API_KEY, the shared Volcengine key used by other providers.
+    3. ARK_API_KEY, the official Ark-compatible fallback name.
+    """
+    for name in ("VOLCENGINE_SPEECH_API_KEY", "VOLCENGINE_API_KEY", "ARK_API_KEY"):
+        value = os.environ.get(name, "").strip()
+        if value:
+            return value
+    return ""

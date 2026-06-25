@@ -25,6 +25,16 @@ EXPECTED_PLUGIN_METADATA = {
         "name": "Volcengine Video Generation Provider",
         "key": "video_gen/volcengine",
     },
+    ROOT / "plugins" / "tts" / "volcengine" / "plugin.yaml": {
+        "id": "text-to-speech-volcengine",
+        "name": "Volcengine Text to Speech Provider",
+        "key": "tts/volcengine",
+    },
+    ROOT / "plugins" / "transcription" / "volcengine" / "plugin.yaml": {
+        "id": "speech-to-text-volcengine",
+        "name": "Volcengine Speech to Text Provider",
+        "key": "transcription/volcengine",
+    },
 }
 
 

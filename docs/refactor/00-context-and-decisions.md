@@ -132,10 +132,20 @@
 
 火山语音模型当前不支持通过 Auto 或控制台切换使用，必须显式设置 Resource-Id：
 
+- TTS: `seed-tts-2.0`（模型 `doubao-seed-tts-2.0`）
+- ASR/STT: `volc.seedasr.sauc.duration`（模型 `doubao-seed-asr-2.0`）
+
+语音模型当前不支持通过 Auto 或控制台切换使用，安装与 README 中都必须显式说明 Resource-Id 与 Base URL。Agent Plan Base URL：
+
 ```text
-TTS: seed-tts-2.0
-ASR: volc.seedasr.sauc.duration
+TTS HTTP: https://openspeech.bytedance.com/api/v3/plan/tts/unidirectional
+TTS WebSocket 双向流式: wss://openspeech.bytedance.com/api/v3/plan/tts/bidirection
+TTS WebSocket 流式输出: wss://openspeech.bytedance.com/api/v3/plan/tts/unidirectional/stream
+ASR/STT WebSocket 双流实时: wss://openspeech.bytedance.com/api/v3/plan/sauc/bigmodel_async
+ASR/STT WebSocket 单流高精度: wss://openspeech.bytedance.com/api/v3/plan/sauc/bigmodel_nostream
 ```
+
+当前 Hermes transcription provider 默认选用 **单流 `bigmodel_nostream`**，原因是 Hermes voice dictation 传给 provider 的是已录完的音频文件路径，低延迟边说边返回不是当前接口契约的主要收益；单流适合“流式发送完整音频，完成后统一返回高精度结果”。后续如果 Hermes core 暴露实时麦克风 streaming contract，再考虑增加 `asr_mode=async` 走双流实时接口。
 
 ## 9. 非目标
 

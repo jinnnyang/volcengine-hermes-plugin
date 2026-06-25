@@ -1,234 +1,290 @@
 # 火山引擎豆包插件与 Hermes Agent 集成 (`volcengine`)
 
-本集成插件为 Hermes Agent 提供了对火山引擎（Volcengine）模型的原生支持，包括豆包大语言模型（Doubao LLM）、豆包图像生成大模型（Doubao Seedream）和豆包视频生成大模型（Doubao Seedance）。
+本仓库为 Hermes Agent 提供火山引擎 / 豆包 backend provider：
 
-## 目录
-- [起因与背景](#起因与背景)
-- [设计思路与架构](#设计思路与架构)
-- [目录结构](#目录结构)
-- [安装方法](#安装方法)
-  - [自动安装（推荐）](#自动安装推荐)
-  - [手动安装](#手动安装)
-- [配置说明](#配置说明)
-- [使用方法](#使用方法)
-  - [1. LLM 大语言模型](#1-llm-大语言模型)
-  - [2. 图像生成](#2-图像生成)
-  - [3. 视频生成](#3-视频生成)
-- [常见问题 (FAQ)](#常见问题-faq)
+- LLM model provider：支持 Agent Plan、Coding Plan 和普通 Ark API 端点模式。
+- 图像生成：豆包 Seedream。
+- 视频生成：豆包 Seedance。
+- Web Search：Hermes `web_search` 的火山 / 豆包搜索 backend。
+- 文本转语音：Hermes `text_to_speech` 的豆包 Seed TTS backend。
+- 语音转文字：Hermes transcription / voice input 的豆包 Seed ASR backend。
 
----
-
-## 起因与背景
-
-Hermes Agent 原生支持一系列标准模型供应商，但缺乏对火山引擎（火山方舟）的柔性、全功能支持。火山引擎提供了行业领先的基础模型：
-- **豆包大语言模型**（提供 Agent Plan / Coding Plan）
-- **豆包 Seedream**（图像生成）
-- **豆包 Seedance**（视频生成）
-
-为了在 Hermes Agent 智能体中无缝使用这些模型，我们基于 Hermes Agent 的插件系统开发了 `volcengine` 插件包，将这些模型作为一等公民（First-class providers）注册到 Agent 的配置体系中。
-
----
-
-## 设计思路与架构
-
-Hermes Agent 发现和加载不同类型的扩展采用了两种独立机制：
-1. **模型供应商 (Model Providers)**：由系统级 `providers/` 目录扫描器自动加载并发现。
-2. **生成式后端 (Image/Video Gen)**：由 Hermes 核心的 `PluginManager` 动态发现并装载。
-
-因此，本集成方案在 `volcengine` 标准命名空间下被拆分为三个独立的插件：
-
-### 1. 模型供应商插件 (Model Provider)
-注册一个名为 `volcengine` 的自定义 LLM provider profile，指向火山引擎企业级端点（`https://ark.cn-beijing.volces.com/api/plan/v3`）。它同时注册了 `doubao` 和 `volces-engine` 别名，确保与旧配置结构的完整向后兼容。
-
-### 2. 图像生成插件 (`Seedream`)
-这是一款高度定制的图像生成后端，重点实现了以下技术细节：
-- **状态透明化（解决黑盒状态）**：在插件加载与执行时，直接向标准错误输出（`sys.stderr`）打印显式的初始化与执行日志（例如 `[volcengine] ...`），方便开发者了解插件的工作状态。
-- **企业级端点适配**：使用企业方案专用的 `/api/plan/v3/images/generations` API 路径。
-- **高分辨率统一映射**：
-  为了防止在企业级自定义接入点（如 `ep-xxxxxx-xxxx`）上使用时因判定模型版本非 5.0 触发低分辨率导致 API 校验失败（火山引擎要求至少 3,686,400 像素），插件将所有模型（包括 Seedream 4.0 与 5.0 系列）统一硬编码映射为最高画质的百万像素级尺寸：
-  - `landscape` (横屏) $\rightarrow$ `2560x1440`
-  - `square` (方形) $\rightarrow$ `2048x2048`
-  - `portrait` (竖屏) $\rightarrow$ `1440x2560`
-- **自动下载与本地缓存**：若火山引擎 API 忽略了我们请求的 `b64_json` 响应格式，仍然返回在线图片 URL，插件会自动捕获该 URL 并利用 `httpx` 拉取二进制图片数据，完成 Base64 转换并写入本地缓存路径。这保证了与 Hermes 本地缓存机制的完美适配。
-- **超长请求超时**：使用 `httpx.Timeout` 分离了连接超时（10s）与读取超时（120s），防止由于高分辨率图片生成慢而导致网络请求提前超时。
-
-### 3. 视频生成插件 (`Seedance 2.0`)
-- **异步任务生命周期管理**：火山视频生成 API 是异步的。本插件在同步的 `generate` 方法中，实现了一套稳健的异步协程包装器，包含了任务提交（`POST /api/plan/v3/contents/generations/tasks`）和后台状态轮询（`GET /api/plan/v3/contents/generations/tasks/{id}`）。
-- **实时输出日志**：生成过程中，会将创建状态、任务 ID 以及当前轮询状态（`queued`, `running` 等）实时打印到标准错误（`sys.stderr`），保证执行过程清晰透明。
-
----
+Hermes 运行时配置里使用的 provider name 是 `volcengine`。
 
 ## 目录结构
 
-```
-.
-├── install.sh                  # 交互式自动安装脚本
-├── README.md                   # 英文文档
-├── README_zh-CN.md             # 中文文档
-└── plugins/
-    ├── model-providers/
-    │   └── volcengine/
-    │       ├── plugin.yaml     # LLM 供应商元数据
-    │       └── __init__.py     # 模块级注册入口及别名导出
-    ├── image_gen/
-    │   └── volcengine/
-    │       ├── plugin.yaml     # 图像生成后端元数据
-    │       └── __init__.py     # Seedream 逻辑及注册实现
-    └── video_gen/
-        └── volcengine/
-            ├── plugin.yaml     # 视频生成后端元数据
-            └── __init__.py     # Seedance 异步包装与注册实现
+```text
+plugins/
+├── _volcengine_common/
+│   └── config.py
+├── model-providers/
+│   └── volcengine/
+│       ├── __init__.py
+│       └── plugin.yaml
+├── image_gen/
+│   └── volcengine/
+│       ├── __init__.py
+│       └── plugin.yaml
+├── video_gen/
+│   └── volcengine/
+│       ├── __init__.py
+│       └── plugin.yaml
+├── web/
+│   └── volcengine/
+│       ├── __init__.py
+│       ├── plugin.yaml
+│       └── provider.py
+├── tts/
+│   └── volcengine/
+│       ├── __init__.py
+│       ├── plugin.yaml
+│       └── provider.py
+└── transcription/
+    └── volcengine/
+        ├── __init__.py
+        ├── plugin.yaml
+        ├── provider.py
+        └── protocol.py
 ```
 
----
+## 命名模型
+
+Hermes 在不同层级会使用不同的名字：
+
+| 层级 | 示例 | 用途 |
+|---|---|---|
+| manifest `id` | `speech-to-text-volcengine` | `plugin.yaml` 里的稳定插件包机器标识。 |
+| manifest `name` | `Volcengine Speech to Text Provider` | `hermes plugins list` 里展示的人类可读名称。 |
+| plugin registry key | `transcription/volcengine` | 根据路径派生，写入 `plugins.enabled` 的启用 key。 |
+| runtime provider name | `volcengine` | `tts.provider`、`stt.provider`、`web.search_backend` 等配置选择的 provider name。 |
+
+语音部分需要注意：Hermes 插件目录 category 叫 `transcription`，运行时配置 section 叫 `stt`，火山产品名通常叫 ASR。
 
 ## 安装方法
 
-### 自动安装（推荐）
+### 自动安装
 
-我们在项目根目录提供了一个交互式安装脚本 `install.sh`。它能自动扫描当前系统环境下的所有 Hermes Agent Profile 目录（通过识别目录下是否包含 `SOUL.md`、`config.yaml` 和 `home/` 子目录），列出来并等待你选择安装。
+在仓库根目录运行：
 
-运行以下命令执行安装：
 ```bash
 bash install.sh
 ```
 
-**脚本的自动化处理逻辑：**
-1. 自动扫描候选路径（如 `~/.hermes` 或 `/opt/data/profiles/athena`）。
-2. 列出检测到的 Profile 目录，用户输入对应序号并回车确认。
-3. 自动将插件文件拷贝到对应 Profile 的插件目录。
-4. 自动清除目标 Profile 中可能残留的旧版 `volces-engine` 插件目录。
-5. 使用 Python 脚本安全地修改该 Profile 下的 `config.yaml` 文件：自动向 `plugins.enabled` 追加启用项，并将 `image_gen` 和 `video_gen` 的 provider 字段切换为 `volcengine`，不破坏用户原有的其它配置。
+安装脚本会扫描 Hermes Agent profile 目录，提示选择目标 profile，复制插件文件夹，备份 `config.yaml`，去重写入 plugin registry key，并写入非 secret 的 provider 默认配置。
+
+非交互示例：
+
+```bash
+bash install.sh \
+  --profile /path/to/hermes/profile \
+  --mode agent \
+  --enable-model \
+  --enable-image \
+  --enable-video \
+  --enable-web-search \
+  --enable-tts \
+  --enable-stt \
+  --set-default-web-search \
+  --set-default-tts \
+  --set-default-stt
+```
+
+常用选项：
+
+```text
+--mode agent|coding|api      将 VOLCENGINE_PLAN_MODE 写入 .env。
+--base-url URL               将 VOLCENGINE_BASE_URL 写入 .env。
+--profile PATH               安装到指定 Hermes profile。
+--dry-run                    只打印动作，不修改文件。
+--no-config                  只复制插件，不修改 config.yaml 或 .env。
+--no-tts / --no-stt          不安装 TTS 或 STT 插件。
+```
+
+Secrets 永远不要写入 `config.yaml`。请把 key 放在目标 profile 的 `.env`：
+
+```bash
+VOLCENGINE_API_KEY=[REDACTED]
+VOLCENGINE_SPEECH_API_KEY=[REDACTED]
+```
+
+`VOLCENGINE_SPEECH_API_KEY` 是 TTS 和 STT 推荐使用的专用语音 key。当前语音 provider 也会兼容 fallback 到 `VOLCENGINE_API_KEY` 和 `ARK_API_KEY`。
+
+安装后需要重启 Hermes Agent 或 reset session，让新启用的插件被加载。
 
 ### 手动安装
 
-如果您的环境无法运行自动脚本，请按照以下步骤手动部署：
+复制插件文件夹到 Hermes profile：
 
-1. **拷贝插件文件夹**至您的 Hermes Profile 对应的 `plugins/` 目录：
-   ```bash
-   cp -r plugins/model-providers/volcengine [HERMES_HOME]/plugins/model-providers/
-   cp -r plugins/image_gen/volcengine [HERMES_HOME]/plugins/image_gen/
-   cp -r plugins/video_gen/volcengine [HERMES_HOME]/plugins/video_gen/
-   ```
-2. **在配置文件中启用插件**：打开 `[HERMES_HOME]/config.yaml`，并在 `plugins.enabled` 列表下追加：
-   ```yaml
-   plugins:
-     enabled:
-       - image_gen/volcengine
-       - video_gen/volcengine
-   ```
-3. **配置默认生成后端**：在 `[HERMES_HOME]/config.yaml` 中，更新对应的 provider 配置：
-   ```yaml
-   image_gen:
-     provider: volcengine
-     model: doubao-seedream-5.0-lite
-
-   video_gen:
-     provider: volcengine
-     model: doubao-seedance-2.0
-   ```
-
----
-
-## Agent Guidance (智能体引导机制)
-
-为了确保调用的 LLM Agent 能够高效操作并避免混淆，本插件实现了一套专用的**智能体引导机制**（Agent Guidance Mechanism）。每一次工具执行的响应中（无论是成功还是失败），其 JSON 结构中都会附加一个专门的 `"agent_guidance"` 字段。
-
-### 引导机制的核心能力：
-1. **预估耗时引导**：告知 Agent 标准执行时间（例如：图片生成需要 8s-25s，视频生成需要 2-3 分钟），让 Agent 能够合理预期并对用户进行安抚。
-2. **任务状态透明**：说明当前任务的处理逻辑（图像生成是同步的，已经实时阻塞并完成；视频生成是异步的，但工具内置了同步轮询，当前已经完全执行完毕并缓存）。
-3. **本地缓存与渲染建议**：提供具体的渲染方式（如使用标准的 Markdown 语法 `![图片](file://<path>)` 来展示本地绝对路径的文件），并明确要求 Agent 优先展示已有结果，避免不必要的重复生成或无休止的状态查询。
-4. **可操作的排查建议**：如果执行失败，会详细指导 Agent 如何检查环境变量（`VOLCENGINE_API_KEY`）和火山引擎账户的服务开通状态，方便 Agent 自我纠错和重试。
-
-#### 成功响应的 JSON 载荷示例：
-```json
-{
-  "success": true,
-  "image": "/opt/data/profiles/athena/cache/images/volc_doubao-seedream-5.0-lite_20260522_081344_72a34af6.png",
-  "model": "doubao-seedream-5.0-lite",
-  "prompt": "a simple red dot",
-  "aspect_ratio": "landscape",
-  "provider": "volcengine",
-  "size": "2560x1440",
-  "agent_guidance": "[AGENT GUIDANCE]\n- 预计耗时 (Estimated Duration): Doubao Seedream 5.0 Lite/Pro 耗时约 10s-25s，Seedream 4.0 约 8s。\n- 任务状态 (Task Status): 该任务为同步生成，已实时阻塞并成功完成。图片文件已下载保存。\n- 本地文件 (Local File): 图片已成功缓存到本地。请使用绝对路径展示该图片，例如：![图片](file:///opt/data/profiles/athena/cache/images/volc_doubao-seedream-5.0-lite_20260522_081344_72a34af6.png)。\n- 渲染/后续建议: 图像生成任务已全部成功完成，请直接展示给用户，无需重复调用生成。"
-}
-```
-
----
-
-## 配置说明
-
-要授权火山引擎的 API 请求，请配置您的火山方舟 API Key。主环境变量为 `VOLCENGINE_API_KEY`，并同时向下兼容 `ARK_API_KEY` 作为备用参数：
-
-在目标 Profile 根目录的 `.env` 文件（即 `[HERMES_HOME]/.env`）中写入：
 ```bash
-VOLCENGINE_API_KEY=your-volcengine-api-key-here
+cp -r plugins/_volcengine_common [HERMES_HOME]/plugins/
+cp -r plugins/model-providers/volcengine [HERMES_HOME]/plugins/model-providers/
+cp -r plugins/image_gen/volcengine [HERMES_HOME]/plugins/image_gen/
+cp -r plugins/video_gen/volcengine [HERMES_HOME]/plugins/video_gen/
+cp -r plugins/web/volcengine [HERMES_HOME]/plugins/web/
+cp -r plugins/tts/volcengine [HERMES_HOME]/plugins/tts/
+cp -r plugins/transcription/volcengine [HERMES_HOME]/plugins/transcription/
 ```
 
----
+在 `[HERMES_HOME]/config.yaml` 中启用 plugin registry key：
 
-## 使用方法
+```yaml
+plugins:
+  enabled:
+    - model-providers/volcengine
+    - image_gen/volcengine
+    - video_gen/volcengine
+    - web/volcengine
+    - tts/volcengine
+    - transcription/volcengine
+```
 
-### 1. LLM 大语言模型
-注册完成后，您可以直接在 `config.yaml` 的模型配置部分指定 `volcengine` 的端点 and 模型：
+配置 active providers：
+
 ```yaml
 model:
-  default: ark-code-latest
-  provider: custom
-  base_url: https://ark.cn-beijing.volces.com/api/plan/v3
-  api_key: 您的API_KEY
-```
+  provider: volcengine
 
-### 2. 图像生成
-在终端或与 Agent 对话时触发图像生成，Hermes 将调用 `volcengine` 后端处理：
-```bash
-hermes image "日落时分充满科幻霓虹色彩的未来都市" --aspect landscape
-```
-这将使用 `doubao-seedream-5.0-lite` 产生一张宽高为 `2560x1440` 的高分辨率图片。
+web:
+  search_backend: volcengine
 
-若要选用更高画质的 pro 版本模型，可在配置中覆写：
-```yaml
 image_gen:
   provider: volcengine
-  model: doubao-seedream-5.0-pro
+  model: doubao-seedream-5.0-lite
+
+video_gen:
+  provider: volcengine
+  model: doubao-seedance-1.5-pro
+
+tts:
+  provider: volcengine
+  volcengine:
+    model: doubao-seed-tts-2.0
+    voice: zh_female_vv_uranus_bigtts
+    format: wav
+    sample_rate: 24000
+
+stt:
+  enabled: true
+  provider: volcengine
+  volcengine:
+    model: doubao-seed-asr-2.0
+    language: auto
 ```
 
-### 3. 视频生成
-使用豆包视频生成大模型生成视频：
+把 secrets 写入 `[HERMES_HOME]/.env`，不要写入 config.yaml：
+
 ```bash
-hermes video "一只蜂鸟在盛开的花朵旁盘旋吸蜜"
+VOLCENGINE_API_KEY=[REDACTED]
+VOLCENGINE_SPEECH_API_KEY=[REDACTED]
 ```
-系统将通过我们包装的 `volcengine` 视频后端进行解析和任务推送，并在标准错误流中输出实时排队与生成进度日志。
 
----
+## 端点模式
 
-## 常见问题 (FAQ)
+共享配置 helper 按以下顺序解析 Volcengine Ark base URL：
 
-### 问：`image_gen/volcengine` 和 `video_gen/volcengine` 能不能合并成 1 个包 `volcengine` ？为什么？
+1. 显式设置的 `VOLCENGINE_BASE_URL`。
+2. `VOLCENGINE_PLAN_MODE`：
+   - `agent` → `https://ark.cn-beijing.volces.com/api/plan/v3`
+   - `coding` → `https://ark.cn-beijing.volces.com/api/coding/v3`
+   - `api` → `https://ark.cn-beijing.volces.com/api/v3`
+3. 默认使用 Agent Plan。
 
-**答：不能，也不应该合并。主要原因如下：**
+## 能力说明
 
-1. **Hermes Agent 的动态插件扫描与加载约定**：
-   Hermes Agent 核心是通过特定的子目录来对不同功能类型的插件进行分类扫描和发现的：
-   - `plugins/image_gen/` 目录专门被扫描加载为图像生成后端。
-   - `plugins/video_gen/` 目录专门被扫描加载为视频生成后端。
-   - `plugins/model-providers/` 目录专门被扫描加载为大语言模型（LLM）供应商。
-   如果将它们合并为一个位于 `plugins/volcengine` 的单一目录，Hermes Agent 的分类扫描器将无法识别和按需加载对应的生成后端。
+### LLM model provider
 
-2. **元数据配置冲突 (`plugin.yaml`)**：
-   每一个插件目录中都必须包含一个独立的 `plugin.yaml` 配置文件，用于定义该插件的类型（`kind: backend`）、名称以及所需的环境变量等。如果将它们合并，单一目录将无法提供多套冲突的插件元数据。
+Model provider 注册 runtime provider name `volcengine`，支持动态 `/models` 拉取，并保留 fallback models，包括 `ark-code-latest`。
 
-3. **配置文件的精细化控制**：
-   Hermes 允许用户在 `config.yaml` 中对不同类型的插件进行细粒度的启用和禁用：
-   ```yaml
-   plugins:
-     enabled:
-       - image_gen/volcengine
-       - video_gen/volcengine
-   ```
-   拆分为独立插件可以使用户仅启用需要的服务（例如只用图像生成，不用视频生成），从而避免了无关插件的加载与依赖。
+### 图像生成
 
-4. **架构设计与实现的关注点分离**：
-   - **图像生成 (Seedream)**：是完全同步的 API，在 8-25 秒内直接返回 Base64 数据并保存，涉及百万像素级的分辨率映射逻辑。
-   - **视频生成 (Seedance)**：是异步任务系统，需要使用同步包装器和后台状态轮询机制（耗时约 2-3 分钟），并具备音频控制、多媒体输入和异步下载缓存等截然不同的逻辑。
-   保持两者解耦，使得每个插件的代码库小巧专注，极易维护。
+默认模型：
+
+```text
+doubao-seedream-5.0-lite
+```
+
+图像 provider 首版是 text-to-image only，并把 aspect ratio 映射为适配火山图像端点的高分辨率尺寸。
+
+### 视频生成
+
+默认模型：
+
+```text
+doubao-seedance-1.5-pro
+```
+
+视频 provider 对火山异步任务生命周期做同步轮询封装，生成成功后返回本地缓存的视频路径。
+
+### Web Search
+
+Web provider 注册 Hermes `web_search` backend，provider name 为 `volcengine`，通过以下配置选择：
+
+```yaml
+web:
+  search_backend: volcengine
+```
+
+### 文本转语音 TTS
+
+TTS provider 通过 `ctx.register_tts_provider(...)` 注册到 Hermes，通过以下配置选择：
+
+```yaml
+tts:
+  provider: volcengine
+```
+
+默认值：
+
+```text
+model: doubao-seed-tts-2.0
+resource id: seed-tts-2.0
+voice: zh_female_vv_uranus_bigtts
+format: wav
+```
+
+### 语音转文字 STT / transcription
+
+STT provider 通过 `ctx.register_transcription_provider(...)` 注册到 Hermes，通过以下配置选择：
+
+```yaml
+stt:
+  enabled: true
+  provider: volcengine
+```
+
+默认值：
+
+```text
+model: doubao-seed-asr-2.0
+resource id: volc.seedasr.sauc.duration
+language: auto
+```
+
+实现使用 `websockets` Python 包，并把火山 ASR 二进制协议 helper 放在 `plugins/transcription/volcengine/protocol.py`。
+
+## 验证
+
+运行测试：
+
+```bash
+uv run pytest -q
+```
+
+检查 Hermes profile 中插件是否已启用：
+
+```bash
+hermes plugins list --plain --enabled
+```
+
+预期 registry key 包含：
+
+```text
+model-providers/volcengine
+image_gen/volcengine
+video_gen/volcengine
+web/volcengine
+tts/volcengine
+transcription/volcengine
+```
+
+真实 TTS → STT roundtrip smoke test 只能在明确提供有效 speech API key 到 `.env` 之后执行。

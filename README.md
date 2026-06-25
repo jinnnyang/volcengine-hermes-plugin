@@ -1,236 +1,290 @@
 # Volcengine Doubao Plugin Integration for Hermes Agent (`volcengine`)
 
-This plugin integration adds native support for Volcano Engine (火山引擎) models—specifically Doubao LLMs, Doubao Seedream (image generation), and Doubao Seedance (video generation)—into Hermes Agent.
+This repository provides Volcengine / Doubao backend providers for Hermes Agent:
 
-## Table of Contents
-- [Motivation](#motivation)
-- [Design & Architecture](#design--architecture)
-- [Directory Structure](#directory-structure)
-- [Installation](#installation)
-  - [Automatic Installation](#automatic-installation)
-  - [Manual Installation](#manual-installation)
-- [Configuration](#configuration)
-- [Usage](#usage)
-  - [1. LLM Models](#1-llm-models)
-  - [2. Image Generation](#2-image-generation)
-  - [3. Video Generation](#3-video-generation)
-- [FAQ](#faq)
+- LLM model provider: Agent Plan, Coding Plan, and standard Ark API endpoint modes.
+- Image generation: Doubao Seedream.
+- Video generation: Doubao Seedance.
+- Web search: Volcengine / Doubao Search backend for Hermes `web_search`.
+- Text to speech: Doubao Seed TTS backend for Hermes `text_to_speech`.
+- Speech to text: Doubao Seed ASR backend for Hermes transcription / voice input.
 
----
+The provider name used by Hermes runtime configuration is `volcengine`.
 
-## Motivation
+## Directory structure
 
-Hermes Agent natively supports standard model backends but lacks flexible, full-featured integrations for Volcano Engine (火山引擎). Volcano Engine provides high-quality foundation models, notably:
-- **Doubao LLMs** (Agent and Coding plans)
-- **Doubao Seedream** (Image Generation)
-- **Doubao Seedance** (Video Generation)
-
-By leveraging Hermes Agent's extensibility, this project implements a set of customized plugins (`volcengine`) to seamlessly register and use these models directly inside your agent profiles.
-
----
-
-## Design & Architecture
-
-Hermes Agent discovers different types of extensions through two distinct mechanisms:
-1. **Model Providers**: Discovered and loaded at the system level via `providers/` scanner.
-2. **Backends (Image/Video Gen)**: Loaded dynamically by Hermes' `PluginManager`.
-
-This integration is split into three independent plug-and-play plugins under the standard namespace `volcengine`:
-
-### 1. Model Provider Plugin
-Registers a custom LLM provider profile (`volcengine`) pointing to Volcano Engine's enterprise endpoint (`https://ark.cn-beijing.volces.com/api/plan/v3`). It registers the `doubao` and `volces-engine` aliases to maintain complete backward compatibility with older configuration structures.
-
-### 2. Image Generation Plugin (`Seedream`)
-A custom backend that handles:
-- **State Transparency (No Black-Box)**: Visual initialization and execution logs are printed directly to standard error (`sys.stderr`) when loading and calling the plugin so developers always know the plugin's status.
-- **Enterprise Endpoints**: Uses the `/api/plan/v3/images/generations` path required by enterprise plans.
-- **High-Resolution Mappings**:
-  To prevent API validation failures on enterprise custom endpoints (e.g. `ep-xxxxxx-xxxx`), the resolution sizes are unified across all models (Seedream 4.0 and 5.0 alike) to satisfy Volcano Engine's $\ge 3,686,400$ pixel requirement:
-  - `landscape` $\rightarrow$ `2560x1440`
-  - `square` $\rightarrow$ `2048x2048`
-  - `portrait` $\rightarrow$ `1440x2560`
-- **Automatic Downloading & Local Caching**: In case the Volcano Engine API ignores the requested `b64_json` response format and returns a remote URL, the plugin dynamically detects the URL, downloads the image via `httpx`, encodes it to base64, and caches it locally under the profile's image cache directory. This preserves Hermes' local cache consistency.
-- **Timeouts & Reliability**: Separated connect (10s) and read (120s) timeouts using `httpx.Timeout` to prevent premature failures on slow generations.
-
-### 3. Video Generation Plugin (`Seedance 2.0`)
-- **Durable Task Processing & Guidance**: Volcengine Video Generation is asynchronous by nature, typically taking **2 to 3 minutes**. The plugin implements a resilient synchronous wrapper around the asynchronous task creation (`POST /api/plan/v3/contents/generations/tasks`) and background status polling (`GET /api/plan/v3/contents/generations/tasks/{id}`) lifecycle. The tool call blocks during this period, and the agent is guided to wait patiently without interrupting.
-- **Real-Time Logs & Polling**: Automatically polls the task status every 10 seconds. It prints the task creation status, Task ID, and current states (`queued`, `running`, `succeeded`) directly to standard error (`sys.stderr`) to provide maximum visibility and resolve any "black-box" loader state issues.
-- **Automatic Downloading & Local Caching**: Once video generation succeeds, the plugin **automatically downloads the video file** from the temporary remote URL and caches it locally under the profile's video cache folder (matching the local-saving behavior of image generation). The returned `video` reference contains the absolute local filesystem path (e.g., `/opt/data/profiles/athena/cache/videos/volc_...mp4`), making it fully offline-accessible.
-
----
-
-## Directory Structure
-
-```
-.
-├── install.sh                  # Interactive installation script
-├── README.md                   # English documentation
-├── README_zh-CN.md             # Chinese documentation
-└── plugins/
-    ├── model-providers/
-    │   └── volcengine/
-    │       ├── plugin.yaml     # Model provider metadata
-    │       └── __init__.py     # Module-level registry call & alias exports
-    ├── image_gen/
-    │   └── volcengine/
-    │       ├── plugin.yaml     # Image gen backend metadata
-    │       └── __init__.py     # Seedream implementation & registration
-    └── video_gen/
-        └── volcengine/
-            ├── plugin.yaml     # Video gen backend metadata
-            └── __init__.py     # Seedance wrapper & registration
+```text
+plugins/
+├── _volcengine_common/
+│   └── config.py
+├── model-providers/
+│   └── volcengine/
+│       ├── __init__.py
+│       └── plugin.yaml
+├── image_gen/
+│   └── volcengine/
+│       ├── __init__.py
+│       └── plugin.yaml
+├── video_gen/
+│   └── volcengine/
+│       ├── __init__.py
+│       └── plugin.yaml
+├── web/
+│   └── volcengine/
+│       ├── __init__.py
+│       ├── plugin.yaml
+│       └── provider.py
+├── tts/
+│   └── volcengine/
+│       ├── __init__.py
+│       ├── plugin.yaml
+│       └── provider.py
+└── transcription/
+    └── volcengine/
+        ├── __init__.py
+        ├── plugin.yaml
+        ├── provider.py
+        └── protocol.py
 ```
 
----
+## Naming model
+
+Hermes uses several names at different layers:
+
+| Layer | Example | Purpose |
+|---|---|---|
+| Manifest `id` | `speech-to-text-volcengine` | Stable plugin bundle identifier in `plugin.yaml`. |
+| Manifest `name` | `Volcengine Speech to Text Provider` | Human-readable display name in `hermes plugins list`. |
+| Plugin registry key | `transcription/volcengine` | Path-derived enable key stored in `plugins.enabled`. |
+| Runtime provider name | `volcengine` | Value selected by `tts.provider`, `stt.provider`, `web.search_backend`, etc. |
+
+For voice, Hermes' plugin directory category is `transcription`, while the runtime config section is `stt`. Volcengine's product terminology is ASR.
 
 ## Installation
 
-### Automatic Installation
+### Automatic installation
 
-An interactive installer `install.sh` is provided in the repository. It automatically scans your environment to locate active Hermes Agent profile homes (detecting folders with `SOUL.md`, `config.yaml`, and `home/`), lists them, and prompts you to select one.
+Run from the repository root:
 
-Run the installer via:
 ```bash
 bash install.sh
 ```
 
-**What the installer does:**
-1. Detects profile paths (e.g. `~/.hermes` or `/opt/data/profiles/athena`).
-2. Prompts you to pick a target directory.
-3. Copies the plugin code to the correct folder structure in that profile.
-4. Cleans up older `volces-engine` plugin folders.
-5. Uses Python to safely append/configure the plugins and active providers in `config.yaml` without breaking your existing settings.
+The installer scans for Hermes Agent profile directories, prompts you to choose one, copies the selected plugin folders, backs up `config.yaml`, enables plugin registry keys with de-duplication, and writes non-secret provider defaults.
 
-### Manual Installation
+Common non-interactive example:
 
-If automatic installation is not available, you can copy and edit configurations manually:
-
-1. **Copy the plugin folders** to your target Hermes profile's `plugins/` directory:
-   ```bash
-   cp -r plugins/model-providers/volcengine [HERMES_HOME]/plugins/model-providers/
-   cp -r plugins/image_gen/volcengine [HERMES_HOME]/plugins/image_gen/
-   cp -r plugins/video_gen/volcengine [HERMES_HOME]/plugins/video_gen/
-   ```
-2. **Enable the plugins** in `[HERMES_HOME]/config.yaml`:
-   ```yaml
-   plugins:
-     enabled:
-       - image_gen/volcengine
-       - video_gen/volcengine
-   ```
-3. **Configure the active backends** in `[HERMES_HOME]/config.yaml`:
-   ```yaml
-   image_gen:
-     provider: volcengine
-     model: doubao-seedream-5.0-lite
-
-   video_gen:
-     provider: volcengine
-     model: doubao-seedance-2.0
-   ```
-
----
-
-## Agent Guidance (智能体引导机制)
-
-To ensure that the calling LLM Agent operates with high efficiency and avoids confusion, this plugin implements a dedicated **Agent Guidance Mechanism**. Every tool execution response (both successful results and failure responses) returns a structured `"agent_guidance"` field in its JSON payload.
-
-### Core Capabilities of the Guidance:
-1. **Expected Durations**: Communicates standard timeframes to the Agent (e.g., images take ~8-25s, videos take ~2-3m).
-2. **Synchronous Polling Details**: Explains the task status (for image generation, it's synchronous and already complete; for video generation, the tool's internal polling loop has fully executed and finished).
-3. **Local Cache Handling & Rendering**: Concrete recommendations for rendering (such as displaying the file locally using the standard markdown notation `![description](file://<path>)`) and explicitly urging the Agent to directly present the result to the user instead of querying further or re-generating the file.
-4. **Actionable Troubleshooting**: If an execution fails, it guides the Agent step-by-step on how to inspect environment variables (`VOLCENGINE_API_KEY`) and account permissions.
-
-#### Success Payload Example:
-```json
-{
-  "success": true,
-  "image": "/opt/data/profiles/athena/cache/images/volc_doubao-seedream-5.0-lite_20260522_081344_72a34af6.png",
-  "model": "doubao-seedream-5.0-lite",
-  "prompt": "a simple red dot",
-  "aspect_ratio": "landscape",
-  "provider": "volcengine",
-  "size": "2560x1440",
-  "agent_guidance": "[AGENT GUIDANCE]\n- 预计耗时 (Estimated Duration): Doubao Seedream 5.0 Lite/Pro 耗时约 10s-25s，Seedream 4.0 约 8s。\n- 任务状态 (Task Status): 该任务为同步生成，已实时阻塞并成功完成。图片文件已下载保存。\n- 本地文件 (Local File): 图片已成功缓存到本地。请使用绝对路径展示该图片，例如：![图片](file:///opt/data/profiles/athena/cache/images/volc_doubao-seedream-5.0-lite_20260522_081344_72a34af6.png)。\n- 渲染/后续建议: 图像生成任务已全部成功完成，请直接展示给用户，无需重复调用生成。"
-}
-```
-
----
-
-## Configuration
-
-To authorize API requests, configure your Volcano Engine Ark API key. The primary environment variable is `VOLCENGINE_API_KEY`, with `ARK_API_KEY` supported as a secondary fallback:
-
-Add to your environment file (`[HERMES_HOME]/.env`):
 ```bash
-VOLCENGINE_API_KEY=your-volcengine-api-key-here
+bash install.sh \
+  --profile /path/to/hermes/profile \
+  --mode agent \
+  --enable-model \
+  --enable-image \
+  --enable-video \
+  --enable-web-search \
+  --enable-tts \
+  --enable-stt \
+  --set-default-web-search \
+  --set-default-tts \
+  --set-default-stt
 ```
 
----
+Useful options:
 
-## Usage
+```text
+--mode agent|coding|api      Write VOLCENGINE_PLAN_MODE to .env.
+--base-url URL               Write VOLCENGINE_BASE_URL to .env.
+--profile PATH               Install to a specific Hermes profile.
+--dry-run                    Print actions without changing files.
+--no-config                  Copy plugins only; do not edit config.yaml or .env.
+--no-tts / --no-stt          Skip TTS or STT installation if not needed.
+```
 
-### 1. LLM Models
-When the provider is registered, you can configure your default models or auxiliary models to use `volcengine`:
+Secrets are never written to `config.yaml`. Put keys in the target profile `.env`:
+
+```bash
+VOLCENGINE_API_KEY=[REDACTED]
+VOLCENGINE_SPEECH_API_KEY=[REDACTED]
+```
+
+`VOLCENGINE_SPEECH_API_KEY` is the recommended key for TTS and STT. The current speech providers also fall back to `VOLCENGINE_API_KEY` and `ARK_API_KEY` for compatibility.
+
+After installation, restart Hermes Agent or reset the session so newly enabled plugins are loaded.
+
+### Manual installation
+
+Copy plugin folders to your Hermes profile:
+
+```bash
+cp -r plugins/_volcengine_common [HERMES_HOME]/plugins/
+cp -r plugins/model-providers/volcengine [HERMES_HOME]/plugins/model-providers/
+cp -r plugins/image_gen/volcengine [HERMES_HOME]/plugins/image_gen/
+cp -r plugins/video_gen/volcengine [HERMES_HOME]/plugins/video_gen/
+cp -r plugins/web/volcengine [HERMES_HOME]/plugins/web/
+cp -r plugins/tts/volcengine [HERMES_HOME]/plugins/tts/
+cp -r plugins/transcription/volcengine [HERMES_HOME]/plugins/transcription/
+```
+
+Enable plugin registry keys in `[HERMES_HOME]/config.yaml`:
+
+```yaml
+plugins:
+  enabled:
+    - model-providers/volcengine
+    - image_gen/volcengine
+    - video_gen/volcengine
+    - web/volcengine
+    - tts/volcengine
+    - transcription/volcengine
+```
+
+Configure active providers:
+
 ```yaml
 model:
-  default: ark-code-latest
-  provider: custom
-  base_url: https://ark.cn-beijing.volces.com/api/plan/v3
-  api_key: your-api-key
-```
+  provider: volcengine
 
-### 2. Image Generation
-Using the Hermes CLI or agents, trigger image generation. The `volcengine` backend will handle it:
-```bash
-hermes image "a futuristic neon metropolis at sunset" --aspect landscape
-```
-This maps to a `2560x1440` pixel generation request using `doubao-seedream-5.0-lite`.
+web:
+  search_backend: volcengine
 
-To override the model to the pro or v4 variants, pass it in kwargs or via config:
-```yaml
 image_gen:
   provider: volcengine
-  model: doubao-seedream-5.0-pro
+  model: doubao-seedream-5.0-lite
+
+video_gen:
+  provider: volcengine
+  model: doubao-seedance-1.5-pro
+
+tts:
+  provider: volcengine
+  volcengine:
+    model: doubao-seed-tts-2.0
+    voice: zh_female_vv_uranus_bigtts
+    format: wav
+    sample_rate: 24000
+
+stt:
+  enabled: true
+  provider: volcengine
+  volcengine:
+    model: doubao-seed-asr-2.0
+    language: auto
 ```
 
-### 3. Video Generation
-Generate video files using the Doubao Seedance backend:
+Put secrets in `[HERMES_HOME]/.env`, never in config.yaml:
+
 ```bash
-hermes video "a hummingbird hovering next to a blooming flower"
+VOLCENGINE_API_KEY=[REDACTED]
+VOLCENGINE_SPEECH_API_KEY=[REDACTED]
 ```
-This routes through the wrapped `volcengine` video backend. Stderr logs will track task creation and polling.
 
----
+## Endpoint modes
 
-## FAQ
+The shared config helper resolves the Volcengine Ark base URL as follows:
 
-### Q: Can `image_gen/volcengine` and `video_gen/volcengine` be merged into a single `volcengine` package?
+1. `VOLCENGINE_BASE_URL`, if explicitly set.
+2. `VOLCENGINE_PLAN_MODE`, mapped to:
+   - `agent` → `https://ark.cn-beijing.volces.com/api/plan/v3`
+   - `coding` → `https://ark.cn-beijing.volces.com/api/coding/v3`
+   - `api` → `https://ark.cn-beijing.volces.com/api/v3`
+3. Agent Plan by default.
 
-**A: No, they cannot and should not be merged. Here is why:**
+## Capabilities
 
-1. **Hermes Agent Dynamic Plugin Scanner Convention**:
-   The Hermes Agent core scans and loads plugins dynamically based on their specific functional categories and directory paths:
-   - `plugins/image_gen/` is exclusively scanned for image generation backends.
-   - `plugins/video_gen/` is exclusively scanned for video generation backends.
-   - `plugins/model-providers/` is exclusively scanned for LLM providers.
-   If merged into a single root folder, the typed scanners would not be able to locate, load, or register the different backends properly.
+### LLM model provider
 
-2. **Metadata Conflict (`plugin.yaml`)**:
-   Each plugin must contain a single `plugin.yaml` specifying its unique plugin type (`kind: backend`), version, and metadata. Merging them into a single directory would lead to metadata conflicts because a single folder can only define one plugin metadata record.
+The model provider registers the runtime provider name `volcengine` and supports dynamic `/models` discovery with fallback models, including `ark-code-latest`.
 
-3. **Granular Control in Configuration**:
-   Hermes supports selective activation of plugins via `config.yaml`:
-   ```yaml
-   plugins:
-     enabled:
-       - image_gen/volcengine
-       - video_gen/volcengine
-   ```
-   Having separate packages allows users to selectively enable/disable specific backend functionalities (e.g., enabling image gen while keeping video gen disabled) to save resources or match environment capabilities.
+### Image generation
 
-4. **Separation of Concerns & Implementation Differences**:
-   - **Image Generation (Seedream)**: Uses a synchronous REST endpoint returning base64 data, resolving within ~8-25 seconds, using megapixel mappings.
-   - **Video Generation (Seedance)**: Uses an asynchronous task system requiring a status polling loop (taking ~2-3 minutes), content block lists, and video-specific audio/duration parameters.
-   Decoupling them keeps the codebases focused, easier to maintain, and cleaner.
+Default model:
 
+```text
+doubao-seedream-5.0-lite
+```
+
+The image provider is text-to-image only and maps aspect ratios to high-resolution sizes suitable for Volcengine image endpoints.
+
+### Video generation
+
+Default model:
+
+```text
+doubao-seedance-1.5-pro
+```
+
+The video provider wraps Volcengine's async task lifecycle with synchronous polling and returns a local cached video path when generation succeeds.
+
+### Web search
+
+The web provider registers a Hermes `web_search` backend named `volcengine` and is selected with:
+
+```yaml
+web:
+  search_backend: volcengine
+```
+
+### Text to speech
+
+The TTS provider registers with Hermes via `ctx.register_tts_provider(...)` and is selected with:
+
+```yaml
+tts:
+  provider: volcengine
+```
+
+Defaults:
+
+```text
+model: doubao-seed-tts-2.0
+resource id: seed-tts-2.0
+voice: zh_female_vv_uranus_bigtts
+format: wav
+```
+
+### Speech to text / transcription
+
+The STT provider registers with Hermes via `ctx.register_transcription_provider(...)` and is selected with:
+
+```yaml
+stt:
+  enabled: true
+  provider: volcengine
+```
+
+Defaults:
+
+```text
+model: doubao-seed-asr-2.0
+resource id: volc.seedasr.sauc.duration
+language: auto
+```
+
+The implementation uses the `websockets` Python package and keeps the Volcengine ASR binary protocol helpers in `plugins/transcription/volcengine/protocol.py`.
+
+## Verification
+
+Run the test suite:
+
+```bash
+uv run pytest -q
+```
+
+Check plugin enablement in a Hermes profile:
+
+```bash
+hermes plugins list --plain --enabled
+```
+
+Expected registry keys include:
+
+```text
+model-providers/volcengine
+image_gen/volcengine
+video_gen/volcengine
+web/volcengine
+tts/volcengine
+transcription/volcengine
+```
+
+A real TTS → STT roundtrip smoke test should only be run after explicitly providing a valid speech API key in `.env`.

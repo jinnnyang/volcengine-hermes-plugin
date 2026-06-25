@@ -1,0 +1,10 @@
+id: text-to-speech-volcengine
+name: Volcengine Text to Speech Provider
+version: 0.1.0
+description: Volcengine Doubao Seed TTS backend for Hermes text_to_speech.
+author: jinnnyang
+kind: backend
+requires_env:
+  - VOLCENGINE_SPEECH_API_KEY
+provides_tts_providers:
+  - volcengine
