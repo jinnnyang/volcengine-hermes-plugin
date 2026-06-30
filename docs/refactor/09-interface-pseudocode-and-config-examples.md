@@ -296,8 +296,6 @@ stt:
 ```bash
 VOLCENGINE_PLAN_MODE=agent
 VOLCENGINE_API_KEY=...
-VOLCENGINE_SEARCH_API_KEY=...
-VOLCENGINE_SPEECH_API_KEY=...
 ```
 
 ### Coding Plan
@@ -366,3 +364,52 @@ ARK_API_KEY=...
 # Preview first-release defaults
 ./install.sh --mode agent --enable-web-search --enable-tts --enable-stt --dry-run
 ```
+
+## 11. 标准端点汇总 (Agent Plan 默认配置)
+
+所有服务的默认端点按功能分类如下：
+
+### 大语言模型 & 向量模型
+
+| 类型 | 默认端点 |
+|------|----------|
+| 语言模型 / 补全接口 | `https://ark.cn-beijing.volces.com/api/plan/v3` |
+| 向量模型 / 嵌入接口 | `https://ark.cn-beijing.volces.com/api/plan/v3` |
+
+### 视频生成 (Seedance)
+
+| 操作 | 端点 |
+|------|------|
+| 创建视频生成任务 | `https://ark.cn-beijing.volces.com/api/plan/v3/contents/generations/tasks` |
+| 查询单个视频任务 | `https://ark.cn-beijing.volces.com/api/plan/v3/contents/generations/tasks/{id}` |
+| 查询任务列表 | `https://ark.cn-beijing.volces.com/api/plan/v3/contents/generations/tasks?page_num={page_num}&page_size={page_size}&filter.status={filter.status}&filter.task_ids={filter.task_ids}&filter.model={filter.model}` |
+| 取消/删除任务 | `https://ark.cn-beijing.volces.com/api/plan/v3/contents/generations/tasks/{id}` |
+
+### 图片生成 (Seedream)
+
+| 操作 | 端点 |
+|------|------|
+| 图片生成 | `https://ark.cn-beijing.volces.com/api/plan/v3/images/generations` |
+
+### 语音合成 (TTS Doubao Seed 2.0)
+
+| 接口类型 | 端点 |
+|----------|------|
+| HTTP 接口 (HTTP POST) | `https://openspeech.bytedance.com/api/v3/plan/tts/unidirectional` |
+| 双向流式 (WebSocket) | `wss://openspeech.bytedance.com/api/v3/plan/tts/bidirection` |
+| 单向流式输出 (WebSocket) | `wss://openspeech.bytedance.com/api/v3/plan/tts/unidirectional/stream` |
+
+当前 Hermes 插件实现使用 HTTP 接口。
+
+### 语音识别 (ASR Doubao Seed 2.0)
+
+| 接口类型 | 端点 |
+|----------|------|
+| 双流异步接口 | `wss://openspeech.bytedance.com/api/v3/plan/sauc/bigmodel_async` |
+| 单流同步接口 | `wss://openspeech.bytedance.com/api/v3/plan/sauc/bigmodel_nostream` |
+
+当前 Hermes 插件实现使用单流接口，适合处理完整音频文件离线识别。
+
+### 网页搜索 (Doubao Search)
+
+搜索服务使用独立入口：`https://open.feedcoopapi.com/search_api/web_search`

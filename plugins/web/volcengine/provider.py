@@ -39,8 +39,6 @@ logger = logging.getLogger(__name__)
 
 DOUBAO_SEARCH_ENDPOINT = "https://open.feedcoopapi.com/search_api/web_search"
 SEARCH_API_KEY_ENV_VARS = (
-    "VOLCENGINE_SEARCH_API_KEY",
-    "WEB_SEARCH_API_KEY",
     "VOLCENGINE_API_KEY",
     "ARK_API_KEY",
 )
@@ -190,8 +188,8 @@ class VolcengineWebSearchProvider(WebSearchProvider):
             "tag": "Volcengine Doubao Search direct API; search only.",
             "env_vars": [
                 {
-                    "key": "VOLCENGINE_SEARCH_API_KEY",
-                    "prompt": "Volcengine Doubao Search API key",
+                    "key": "VOLCENGINE_API_KEY",
+                    "prompt": "Volcengine API Key (shared for all services)",
                     "url": "https://www.volcengine.com/docs/85508/1650263#search-infinity",
                 }
             ],

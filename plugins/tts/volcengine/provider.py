@@ -102,8 +102,8 @@ class VolcengineTTSProvider(TTSProvider):
             "tag": "Doubao Seed TTS 2.0 via Volcengine OpenSpeech",
             "env_vars": [
                 {
-                    "key": "VOLCENGINE_SPEECH_API_KEY",
-                    "prompt": "Volcengine speech API key",
+                    "key": "VOLCENGINE_API_KEY",
+                    "prompt": "Volcengine API Key (shared for all services)",
                     "url": "https://console.volcengine.com/ark/region:ark+cn-beijing/apikey",
                 }
             ],
@@ -123,8 +123,7 @@ class VolcengineTTSProvider(TTSProvider):
         api_key = resolve_volcengine_speech_api_key()
         if not api_key:
             raise RuntimeError(
-                "Missing Volcengine speech API key. Set VOLCENGINE_SPEECH_API_KEY, "
-                "VOLCENGINE_API_KEY, or ARK_API_KEY."
+                "Missing Volcengine API key. Set VOLCENGINE_API_KEY or ARK_API_KEY."
             )
 
         selected_voice = voice or self.default_voice()

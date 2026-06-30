@@ -106,8 +106,8 @@ class VolcengineTranscriptionProvider(TranscriptionProvider):
             "tag": "Doubao Seed ASR 2.0 via Volcengine OpenSpeech",
             "env_vars": [
                 {
-                    "key": "VOLCENGINE_SPEECH_API_KEY",
-                    "prompt": "Volcengine speech API key",
+                    "key": "VOLCENGINE_API_KEY",
+                    "prompt": "Volcengine API Key (shared for all services)",
                     "url": "https://console.volcengine.com/ark/region:ark+cn-beijing/apikey",
                 }
             ],
@@ -169,8 +169,7 @@ class VolcengineTranscriptionProvider(TranscriptionProvider):
         try:
             if not resolve_volcengine_speech_api_key():
                 raise RuntimeError(
-                    "Missing Volcengine speech API key. Set VOLCENGINE_SPEECH_API_KEY, "
-                    "VOLCENGINE_API_KEY, or ARK_API_KEY."
+                    "Missing Volcengine API key. Set VOLCENGINE_API_KEY or ARK_API_KEY."
                 )
             if importlib.util.find_spec("websockets") is None:
                 raise RuntimeError("Python package 'websockets' is required for Volcengine ASR")

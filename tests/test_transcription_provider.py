@@ -47,7 +47,7 @@ def test_plugin_manifest_and_register_function():
         "author: jinnnyang",
         "kind: backend",
         "requires_env:",
-        "  - VOLCENGINE_SPEECH_API_KEY",
+        "  - VOLCENGINE_API_KEY",
         "provides_transcription_providers:",
     ]
 
@@ -71,7 +71,6 @@ def test_provider_identity_defaults_and_availability(monkeypatch):
     module = load_provider_module()
     provider = module.VolcengineTranscriptionProvider()
 
-    monkeypatch.delenv("VOLCENGINE_SPEECH_API_KEY", raising=False)
     monkeypatch.delenv("VOLCENGINE_API_KEY", raising=False)
     monkeypatch.delenv("ARK_API_KEY", raising=False)
 
@@ -86,7 +85,7 @@ def test_provider_identity_defaults_and_availability(monkeypatch):
         {"id": "doubao-seed-asr-2.0", "display": "Doubao Seed ASR 2.0"}
     ]
 
-    monkeypatch.setenv("VOLCENGINE_SPEECH_API_KEY", "speech-key")
+    monkeypatch.setenv("VOLCENGINE_API_KEY", "api-key")
     monkeypatch.setattr(module.importlib.util, "find_spec", lambda name: object() if name == "websockets" else None)
 
     assert provider.is_available() is True
@@ -96,13 +95,13 @@ def test_asr_headers_include_resource_and_request_ids(monkeypatch):
     module = load_provider_module()
     provider = module.VolcengineTranscriptionProvider()
 
-    monkeypatch.setenv("VOLCENGINE_SPEECH_API_KEY", "speech-key")
+    monkeypatch.setenv("VOLCENGINE_API_KEY", "api-key")
     monkeypatch.setattr(module.uuid, "uuid4", lambda: "uuid-fixed")
 
     headers = provider._build_headers()
 
     assert headers == {
-        "X-Api-Key": "speech-key",
+        "X-Api-Key": "api-key",
         "X-Api-Resource-Id": "volc.seedasr.sauc.duration",
         "X-Api-Request-Id": "uuid-fixed",
         "X-Api-Connect-Id": "uuid-fixed",
@@ -121,7 +120,7 @@ def test_default_auto_language_does_not_send_language_hint(monkeypatch, tmp_path
         captured["language"] = language
         return "今天天气很好"
 
-    monkeypatch.setenv("VOLCENGINE_SPEECH_API_KEY", "speech-key")
+    monkeypatch.setenv("VOLCENGINE_API_KEY", "api-key")
     monkeypatch.setattr(module.importlib.util, "find_spec", lambda name: object() if name == "websockets" else None)
     monkeypatch.setattr(provider, "_run_asr_websocket", fake_run_asr_websocket)
 
@@ -243,7 +242,7 @@ def test_transcribe_maps_websocket_result_and_errors(monkeypatch, tmp_path):
     async def fake_error(*args, **kwargs):
         raise RuntimeError("ASR API Error [400]: bad audio; request_id=req-1")
 
-    monkeypatch.setenv("VOLCENGINE_SPEECH_API_KEY", "speech-key")
+    monkeypatch.setenv("VOLCENGINE_API_KEY", "api-key")
     monkeypatch.setattr(module.importlib.util, "find_spec", lambda name: object() if name == "websockets" else None)
 
     monkeypatch.setattr(provider, "_run_asr_websocket", fake_success)

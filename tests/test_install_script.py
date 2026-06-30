@@ -40,7 +40,7 @@ def test_install_script_keeps_secrets_out_of_config_yaml():
     assert "VOLCENGINE_API_KEY" not in updater
     assert "ARK_API_KEY" not in updater
     assert "[HERMES_HOME]/.env" in script
-    assert "VOLCENGINE_SPEECH_API_KEY=[REDACTED]" in script
+    assert "VOLCENGINE_API_KEY=[REDACTED]" in script
 
 
 def test_install_script_mentions_config_backup_and_deduplication():

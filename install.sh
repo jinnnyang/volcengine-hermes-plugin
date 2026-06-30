@@ -63,7 +63,6 @@ Options:
 
 Secrets are never written to config.yaml. Put API keys in the target profile .env:
   VOLCENGINE_API_KEY=[REDACTED]
-  VOLCENGINE_SPEECH_API_KEY=[REDACTED]
 EOF
 }
 
@@ -335,7 +334,6 @@ show_manual_instructions() {
 
 4. Put secrets in [HERMES_HOME]/.env, never in config.yaml:
    VOLCENGINE_API_KEY=[REDACTED]
-   VOLCENGINE_SPEECH_API_KEY=[REDACTED]
 ==================================================================
 EOF
 }
@@ -466,7 +464,6 @@ cat <<EOF
 Next steps:
 1. Put secrets in $chosen_home/.env, never in config.yaml:
    VOLCENGINE_API_KEY=[REDACTED]
-   VOLCENGINE_SPEECH_API_KEY=[REDACTED]
 2. Restart Hermes Agent / reset the session so newly enabled plugins load.
 3. Verify with:
    hermes plugins list --plain --enabled

@@ -5,6 +5,6 @@ description: Volcengine Doubao Seed ASR backend for Hermes transcription.
 author: jinnnyang
 kind: backend
 requires_env:
-  - VOLCENGINE_SPEECH_API_KEY
+  - VOLCENGINE_API_KEY
 provides_transcription_providers:
   - volcengine

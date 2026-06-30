@@ -35,7 +35,7 @@ def test_provider_availability_checks_supported_env_vars(monkeypatch):
 
     assert provider.is_available() is False
 
-    monkeypatch.setenv("WEB_SEARCH_API_KEY", "official-skill-compatible-key")
+    monkeypatch.setenv("VOLCENGINE_API_KEY", "volcengine-api-key")
 
     assert provider.is_available() is True
 
@@ -50,8 +50,7 @@ def test_search_without_api_key_returns_auth_error(monkeypatch):
     result = provider.search("Hermes Agent", limit=3)
 
     assert result["success"] is False
-    assert "VOLCENGINE_SEARCH_API_KEY" in result["error"]
-    assert "WEB_SEARCH_API_KEY" in result["error"]
+    assert "VOLCENGINE_API_KEY" in result["error"]
 
 
 def test_search_maps_doubao_web_results_to_hermes_shape(monkeypatch):
@@ -93,7 +92,7 @@ def test_search_maps_doubao_web_results_to_hermes_shape(monkeypatch):
         captured["timeout"] = timeout
         return FakeResponse()
 
-    monkeypatch.setenv("VOLCENGINE_SEARCH_API_KEY", "test-search-key")
+    monkeypatch.setenv("VOLCENGINE_API_KEY", "test-search-key")
     monkeypatch.setattr(module.httpx, "post", fake_post)
 
     result = provider.search("Hermes Agent 火山", limit=99)
@@ -147,7 +146,7 @@ def test_search_includes_optional_filters_from_env(monkeypatch):
         captured["json"] = json
         return FakeResponse()
 
-    monkeypatch.setenv("VOLCENGINE_SEARCH_API_KEY", "test-search-key")
+    monkeypatch.setenv("VOLCENGINE_API_KEY", "test-search-key")
     monkeypatch.setenv("VOLCENGINE_SEARCH_AUTH_LEVEL", "1")
     monkeypatch.setenv("VOLCENGINE_SEARCH_TIME_RANGE", "OneWeek")
     monkeypatch.setenv("VOLCENGINE_SEARCH_QUERY_REWRITE", "true")
@@ -185,7 +184,7 @@ def test_search_maps_api_error_response(monkeypatch):
                 }
             }
 
-    monkeypatch.setenv("VOLCENGINE_SEARCH_API_KEY", "bad-key")
+    monkeypatch.setenv("VOLCENGINE_API_KEY", "bad-key")
     monkeypatch.setattr(module.httpx, "post", lambda *args, **kwargs: FakeResponse())
 
     result = provider.search("Hermes", limit=3)
@@ -204,7 +203,7 @@ def test_setup_schema_exposes_primary_key_prompt():
 
     assert schema["name"] == "Volcengine Doubao Search"
     assert schema["badge"] == "paid"
-    assert schema["env_vars"][0]["key"] == "VOLCENGINE_SEARCH_API_KEY"
+    assert schema["env_vars"][0]["key"] == "VOLCENGINE_API_KEY"
     assert "search-infinity" in schema["env_vars"][0]["url"]
 
 

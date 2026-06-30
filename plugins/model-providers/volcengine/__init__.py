@@ -29,10 +29,19 @@ except ModuleNotFoundError:  # pragma: no cover - local file-loading fallback
 print("[volcengine] Model Provider plugin loaded.", file=sys.stderr)
 
 FALLBACK_MODELS = (
+    "auto",
+    "doubao-seed-2.0-code",
+    "doubao-seed-2.0-pro",
     "doubao-seed-2.0-lite",
     "doubao-seed-2.0-mini",
-    "doubao-seed-2.0-pro",
-    "doubao-seed-2.0-code",
+    "glm-5.2",
+    "glm-latest",
+    "kimi-k2.7-code",
+    "minimax-m3",
+    "deepseek-v4-flash",
+    "deepseek-v4-pro",
+    "minimax-m2.7",
+    "kimi-k2.6",
     "ark-code-latest",
 )
 

@@ -44,7 +44,7 @@ def test_plugin_manifest_and_register_function():
         "author: jinnnyang",
         "kind: backend",
         "requires_env:",
-        "  - VOLCENGINE_SPEECH_API_KEY",
+        "  - VOLCENGINE_API_KEY",
         "provides_tts_providers:",
     ]
 
@@ -68,7 +68,6 @@ def test_provider_identity_defaults_and_availability(monkeypatch):
     module = load_provider_module()
     provider = module.VolcengineTTSProvider()
 
-    monkeypatch.delenv("VOLCENGINE_SPEECH_API_KEY", raising=False)
     monkeypatch.delenv("VOLCENGINE_API_KEY", raising=False)
     monkeypatch.delenv("ARK_API_KEY", raising=False)
 
@@ -82,7 +81,7 @@ def test_provider_identity_defaults_and_availability(monkeypatch):
     ]
     assert provider.list_voices()[0]["id"] == "zh_female_vv_uranus_bigtts"
 
-    monkeypatch.setenv("VOLCENGINE_SPEECH_API_KEY", "speech-key")
+    monkeypatch.setenv("VOLCENGINE_API_KEY", "api-key")
 
     assert provider.is_available() is True
 
@@ -92,11 +91,7 @@ def test_speech_api_key_precedence(monkeypatch):
 
     monkeypatch.setenv("ARK_API_KEY", "ark-key")
     monkeypatch.setenv("VOLCENGINE_API_KEY", "volcengine-key")
-    monkeypatch.setenv("VOLCENGINE_SPEECH_API_KEY", "speech-key")
 
-    assert config.resolve_volcengine_speech_api_key() == "speech-key"
-
-    monkeypatch.delenv("VOLCENGINE_SPEECH_API_KEY")
     assert config.resolve_volcengine_speech_api_key() == "volcengine-key"
 
     monkeypatch.delenv("VOLCENGINE_API_KEY")
@@ -127,7 +122,7 @@ def test_synthesize_posts_tts_request_and_writes_base64_chunks(monkeypatch, tmp_
         captured["timeout"] = timeout
         return FakeResponse()
 
-    monkeypatch.setenv("VOLCENGINE_SPEECH_API_KEY", "speech-key")
+    monkeypatch.setenv("VOLCENGINE_API_KEY", "api-key")
     monkeypatch.setattr(module.httpx, "post", fake_post)
 
     result = provider.synthesize("今天天气很好", str(output_path))
@@ -138,7 +133,7 @@ def test_synthesize_posts_tts_request_and_writes_base64_chunks(monkeypatch, tmp_
     assert captured["headers"] == {
         "Content-Type": "application/json",
         "Connection": "keep-alive",
-        "X-Api-Key": "speech-key",
+        "X-Api-Key": "api-key",
         "X-Api-Resource-Id": "seed-tts-2.0",
         "X-Control-Require-Usage-Tokens-Return": "*",
     }
@@ -167,7 +162,7 @@ def test_synthesize_raises_clear_error_with_log_id(monkeypatch, tmp_path):
         def iter_lines(self):
             yield json.dumps({"code": 45000000, "message": "bad request"})
 
-    monkeypatch.setenv("VOLCENGINE_SPEECH_API_KEY", "speech-key")
+    monkeypatch.setenv("VOLCENGINE_API_KEY", "api-key")
     monkeypatch.setattr(module.httpx, "post", lambda *args, **kwargs: FakeResponse())
 
     try:

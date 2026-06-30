@@ -84,8 +84,7 @@ Resource-Id：volc.seedasr.sauc.duration
 ### 环境变量
 
 ```text
-VOLCENGINE_SPEECH_API_KEY      # 首选，语音专属 API Key
-VOLCENGINE_API_KEY             # fallback，沿用已有火山 key
+VOLCENGINE_API_KEY             # 统一入口，所有服务共享此 API Key
 ARK_API_KEY                    # fallback，沿用官方 Ark key 命名
 
 VOLCENGINE_TTS_RESOURCE_ID     # 默认 seed-tts-2.0
