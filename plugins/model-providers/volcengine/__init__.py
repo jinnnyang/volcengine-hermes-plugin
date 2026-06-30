@@ -12,6 +12,7 @@ from providers.base import ProviderProfile
 
 try:
     from plugins._volcengine_common.config import (
+        resolve_volcengine_api_key,
         resolve_volcengine_base_url,
         resolve_volcengine_endpoint,
     )
@@ -21,6 +22,7 @@ except ModuleNotFoundError:  # pragma: no cover - local file-loading fallback
     config_module = importlib.util.module_from_spec(spec)
     assert spec is not None and spec.loader is not None
     spec.loader.exec_module(config_module)
+    resolve_volcengine_api_key = config_module.resolve_volcengine_api_key
     resolve_volcengine_base_url = config_module.resolve_volcengine_base_url
     resolve_volcengine_endpoint = config_module.resolve_volcengine_endpoint
 
@@ -29,7 +31,6 @@ except ModuleNotFoundError:  # pragma: no cover - local file-loading fallback
 print("[volcengine] Model Provider plugin loaded.", file=sys.stderr)
 
 FALLBACK_MODELS = (
-    "auto",
     "doubao-seed-2.0-code",
     "doubao-seed-2.0-pro",
     "doubao-seed-2.0-lite",
@@ -54,12 +55,7 @@ def _first_non_empty(values: Iterable[str | None]) -> str:
 
 
 def _get_api_key() -> str:
-    return _first_non_empty(
-        (
-            os.environ.get("VOLCENGINE_API_KEY"),
-            os.environ.get("ARK_API_KEY"),
-        )
-    )
+    return resolve_volcengine_api_key()
 
 
 def _manual_model() -> str:
@@ -103,21 +99,40 @@ class VolcengineProviderProfile(ProviderProfile):
             api_key = _get_api_key()
 
         effective_base_url = (base_url or self.base_url).rstrip("/")
-        models = (
-            super().fetch_models(
-                api_key=api_key,
-                base_url=effective_base_url,
-                timeout=timeout,
-            )
-            or []
-        )
-        merged = _unique(list(models) + list(self.fallback_models))
+        url = f"{effective_base_url}/models"
+
+        import json
+        import urllib.request
+
+        try:
+            from providers.base import _profile_user_agent
+            user_agent = _profile_user_agent()
+        except Exception:
+            user_agent = "hermes-cli"
+
+        req = urllib.request.Request(url)
+        if api_key:
+            req.add_header("Authorization", f"Bearer {api_key}")
+        req.add_header("Accept", "application/json")
+        req.add_header("User-Agent", user_agent)
+
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                data = json.loads(resp.read().decode())
+            items = data if isinstance(data, list) else data.get("data", [])
+            fetched = [m["id"] for m in items if isinstance(m, dict) and "id" in m]
+        except Exception as exc:
+            print(f"[volcengine] Live model fetch failed: {exc}", file=sys.stderr)
+            fetched = []
+
+        merged = _unique(fetched + list(self.fallback_models))
         print(
             f"[volcengine] Live model fetch loaded {len(merged)} models "
-            f"(including {len(models)} live endpoints).",
+            f"(including {len(fetched)} live endpoints).",
             file=sys.stderr,
         )
         return merged
+
 
 
 _DEFAULT_MODEL = _manual_model() or FALLBACK_MODELS[0]

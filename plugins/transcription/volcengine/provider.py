@@ -38,7 +38,7 @@ except ModuleNotFoundError:  # Local plugin tests outside Hermes source tree
             return {"name": self.display_name, "badge": "", "tag": "", "env_vars": []}
 
 try:
-    from plugins._volcengine_common.config import resolve_volcengine_speech_api_key
+    from plugins._volcengine_common.config import resolve_volcengine_api_key
 except ModuleNotFoundError:  # pragma: no cover - local file-loading fallback
     import importlib.util as _importlib_util
 
@@ -47,7 +47,7 @@ except ModuleNotFoundError:  # pragma: no cover - local file-loading fallback
     config_module = _importlib_util.module_from_spec(spec)
     assert spec is not None and spec.loader is not None
     spec.loader.exec_module(config_module)
-    resolve_volcengine_speech_api_key = config_module.resolve_volcengine_speech_api_key
+    resolve_volcengine_api_key = config_module.resolve_volcengine_api_key
 
 try:
     from plugins.transcription.volcengine.protocol import (
@@ -91,7 +91,7 @@ class VolcengineTranscriptionProvider(TranscriptionProvider):
         return "Volcengine Doubao ASR"
 
     def is_available(self) -> bool:
-        return bool(resolve_volcengine_speech_api_key()) and importlib.util.find_spec("websockets") is not None
+        return bool(resolve_volcengine_api_key()) and importlib.util.find_spec("websockets") is not None
 
     def list_models(self) -> List[Dict[str, Any]]:
         return [{"id": DEFAULT_MODEL, "display": "Doubao Seed ASR 2.0"}]
@@ -114,7 +114,7 @@ class VolcengineTranscriptionProvider(TranscriptionProvider):
         }
 
     def _build_headers(self, *, resource_id: str = DEFAULT_RESOURCE_ID) -> Dict[str, str]:
-        api_key = resolve_volcengine_speech_api_key()
+        api_key = resolve_volcengine_api_key()
         request_id = str(uuid.uuid4())
         connect_id = str(uuid.uuid4())
         return {
@@ -167,7 +167,7 @@ class VolcengineTranscriptionProvider(TranscriptionProvider):
         **extra: Any,
     ) -> Dict[str, Any]:
         try:
-            if not resolve_volcengine_speech_api_key():
+            if not resolve_volcengine_api_key():
                 raise RuntimeError(
                     "Missing Volcengine API key. Set VOLCENGINE_API_KEY or ARK_API_KEY."
                 )

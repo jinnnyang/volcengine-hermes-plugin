@@ -43,7 +43,19 @@ _TIMEOUT = httpx.Timeout(connect=10.0, read=120.0, write=10.0, pool=10.0)
 
 
 def _get_api_key() -> str | None:
-    return os.environ.get("VOLCENGINE_API_KEY") or os.environ.get("ARK_API_KEY")
+    try:
+        from plugins._volcengine_common.config import resolve_volcengine_api_key
+    except ModuleNotFoundError:
+        import importlib.util
+        from pathlib import Path
+        config_path = Path(__file__).resolve().parents[2] / "_volcengine_common" / "config.py"
+        spec = importlib.util.spec_from_file_location("volcengine_common_config", config_path)
+        config_module = importlib.util.module_from_spec(spec)
+        assert spec is not None and spec.loader is not None
+        spec.loader.exec_module(config_module)
+        resolve_volcengine_api_key = config_module.resolve_volcengine_api_key
+
+    return resolve_volcengine_api_key()
 
 
 class VolcengineImageGenProvider(ImageGenProvider):

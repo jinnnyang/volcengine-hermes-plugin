@@ -17,7 +17,7 @@ def test_readmes_document_voice_plugins_and_installation():
         assert "transcription/volcengine" in text
         assert "tts:" in text
         assert "stt:" in text
-        assert "VOLCENGINE_SPEECH_API_KEY=[REDACTED]" in text
+        assert "VOLCENGINE_API_KEY=[REDACTED]" in text
         assert "doubao-seed-tts-2.0" in text
         assert "doubao-seed-asr-2.0" in text
 

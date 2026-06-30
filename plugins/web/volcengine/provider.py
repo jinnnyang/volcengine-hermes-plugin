@@ -46,11 +46,19 @@ MAX_SEARCH_COUNT = 50
 
 
 def _first_env_value(names: Iterable[str]) -> str:
-    for name in names:
-        value = os.getenv(name, "").strip()
-        if value:
-            return value
-    return ""
+    try:
+        from plugins._volcengine_common.config import resolve_volcengine_api_key
+    except ModuleNotFoundError:
+        import importlib.util
+        from pathlib import Path
+        config_path = Path(__file__).resolve().parents[2] / "_volcengine_common" / "config.py"
+        spec = importlib.util.spec_from_file_location("volcengine_common_config", config_path)
+        config_module = importlib.util.module_from_spec(spec)
+        assert spec is not None and spec.loader is not None
+        spec.loader.exec_module(config_module)
+        resolve_volcengine_api_key = config_module.resolve_volcengine_api_key
+
+    return resolve_volcengine_api_key()
 
 
 def _parse_bool(value: str) -> bool:

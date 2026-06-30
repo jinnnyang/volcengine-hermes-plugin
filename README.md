@@ -104,10 +104,9 @@ Secrets are never written to `config.yaml`. Put keys in the target profile `.env
 
 ```bash
 VOLCENGINE_API_KEY=[REDACTED]
-VOLCENGINE_SPEECH_API_KEY=[REDACTED]
 ```
 
-`VOLCENGINE_SPEECH_API_KEY` is the recommended key for TTS and STT. The current speech providers also fall back to `VOLCENGINE_API_KEY` and `ARK_API_KEY` for compatibility.
+`VOLCENGINE_API_KEY` is the shared key used by all Volcengine services. The current providers also fall back to `ARK_API_KEY` for compatibility.
 
 After installation, restart Hermes Agent or reset the session so newly enabled plugins are loaded.
 
@@ -202,9 +201,7 @@ Put secrets in `[HERMES_PROFILE]/.env`, **never in `config.yaml`**:
 ```bash
 # At least one of these is required:
 VOLCENGINE_API_KEY=[your-ark-api-key]
-# Speech TTS/STT prefers this dedicated key:
-VOLCENGINE_SPEECH_API_KEY=[your-speech-api-key]
-# ARK API key also works if speech isn't available:
+# ARK API key also works as a fallback:
 ARK_API_KEY=[your-ark-api-key]
 ```
 

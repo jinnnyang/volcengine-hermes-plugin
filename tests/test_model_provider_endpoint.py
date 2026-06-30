@@ -86,16 +86,38 @@ def test_fetch_models_uses_volcengine_api_key_before_ark_key(monkeypatch):
     clear_volcengine_env(monkeypatch)
     monkeypatch.setenv("VOLCENGINE_API_KEY", "volc-key")
     monkeypatch.setenv("ARK_API_KEY", "ark-key")
-    _module, registered = load_model_provider_module(monkeypatch, fetched_models=["live-a"])
+
+    fetched = ["live-a"]
+    captured = {}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+        def __exit__(self, exc_type, exc, tb):
+            return False
+        def read(self):
+            import json
+            return json.dumps({"object": "list", "data": [{"id": m} for m in fetched]}).encode("utf-8")
+
+    def fake_urlopen(req, timeout):
+        captured["url"] = req.get_full_url()
+        captured["headers"] = {k: v for k, v in req.header_items()}
+        captured["timeout"] = timeout
+        return FakeResponse()
+
+    module, registered = load_model_provider_module(monkeypatch, fetched_models=fetched)
     provider = registered[0]
+    import urllib.request
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
 
     models = provider.fetch_models(timeout=12.5)
 
-    assert provider.last_fetch_args == {
-        "api_key": "volc-key",
-        "base_url": provider.base_url,
-        "timeout": 12.5,
-    }
+    assert captured["url"] == "https://ark.cn-beijing.volces.com/api/plan/v3/models"
+    headers_lower = {k.lower(): v for k, v in captured["headers"].items()}
+    assert headers_lower["authorization"] == "Bearer volc-key"
+    assert headers_lower["accept"] == "application/json"
+    assert captured["timeout"] == 12.5
+
     assert models[:1] == ["live-a"]
     assert "ark-code-latest" in models
 
@@ -103,11 +125,23 @@ def test_fetch_models_uses_volcengine_api_key_before_ark_key(monkeypatch):
 def test_fetch_models_merges_live_fallback_and_manual_model(monkeypatch):
     clear_volcengine_env(monkeypatch)
     monkeypatch.setenv("ARK_MODEL", "custom-endpoint-id")
-    _module, registered = load_model_provider_module(
-        monkeypatch,
-        fetched_models=["live-a", "ark-code-latest", "live-a"],
-    )
+
+    fetched = ["live-a", "ark-code-latest", "live-a"]
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+        def __exit__(self, exc_type, exc, tb):
+            return False
+        def read(self):
+            import json
+            return json.dumps({"object": "list", "data": [{"id": m} for m in fetched]}).encode("utf-8")
+
+    module, registered = load_model_provider_module(monkeypatch, fetched_models=fetched)
     provider = registered[0]
+    import urllib.request
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout: FakeResponse())
+
 
     models = provider.fetch_models(api_key="explicit-key")
 

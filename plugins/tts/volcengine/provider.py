@@ -41,7 +41,7 @@ except ModuleNotFoundError:  # Local plugin tests outside Hermes source tree
             return {"name": self.display_name, "badge": "", "tag": "", "env_vars": []}
 
 try:
-    from plugins._volcengine_common.config import resolve_volcengine_speech_api_key
+    from plugins._volcengine_common.config import resolve_volcengine_api_key
 except ModuleNotFoundError:  # pragma: no cover - local file-loading fallback
     import importlib.util
 
@@ -50,7 +50,7 @@ except ModuleNotFoundError:  # pragma: no cover - local file-loading fallback
     config_module = importlib.util.module_from_spec(spec)
     assert spec is not None and spec.loader is not None
     spec.loader.exec_module(config_module)
-    resolve_volcengine_speech_api_key = config_module.resolve_volcengine_speech_api_key
+    resolve_volcengine_api_key = config_module.resolve_volcengine_api_key
 
 
 DEFAULT_MODEL = "doubao-seed-tts-2.0"
@@ -74,7 +74,7 @@ class VolcengineTTSProvider(TTSProvider):
         return "Volcengine Doubao TTS"
 
     def is_available(self) -> bool:
-        return bool(resolve_volcengine_speech_api_key())
+        return bool(resolve_volcengine_api_key())
 
     def list_models(self) -> List[Dict[str, Any]]:
         return [{"id": DEFAULT_MODEL, "display": "Doubao Seed TTS 2.0"}]
@@ -120,7 +120,7 @@ class VolcengineTTSProvider(TTSProvider):
         format: str = DEFAULT_FORMAT,
         **extra: Any,
     ) -> str:
-        api_key = resolve_volcengine_speech_api_key()
+        api_key = resolve_volcengine_api_key()
         if not api_key:
             raise RuntimeError(
                 "Missing Volcengine API key. Set VOLCENGINE_API_KEY or ARK_API_KEY."

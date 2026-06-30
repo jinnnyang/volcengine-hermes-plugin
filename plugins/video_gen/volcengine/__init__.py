@@ -1,7 +1,7 @@
 """Volcengine Doubao Seedance video generation backend."""
 from __future__ import annotations
 
-import asyncio
+import time
 import logging
 import os
 import sys
@@ -37,7 +37,19 @@ DEFAULT_POLL_INTERVAL_SECONDS = 10
 
 
 def _get_api_key() -> str | None:
-    return os.environ.get("VOLCENGINE_API_KEY") or os.environ.get("ARK_API_KEY")
+    try:
+        from plugins._volcengine_common.config import resolve_volcengine_api_key
+    except ModuleNotFoundError:
+        import importlib.util
+        from pathlib import Path
+        config_path = Path(__file__).resolve().parents[2] / "_volcengine_common" / "config.py"
+        spec = importlib.util.spec_from_file_location("volcengine_common_config", config_path)
+        config_module = importlib.util.module_from_spec(spec)
+        assert spec is not None and spec.loader is not None
+        spec.loader.exec_module(config_module)
+        resolve_volcengine_api_key = config_module.resolve_volcengine_api_key
+
+    return resolve_volcengine_api_key()
 
 
 class VolcengineVideoGenProvider(VideoGenProvider):
@@ -123,7 +135,7 @@ class VolcengineVideoGenProvider(VideoGenProvider):
         seed: Optional[int] = None,
         **kwargs: Any,
     ) -> Dict[str, Any]:
-        res = self._generate_sync_wrapper(
+        res = self._generate_sync(
             prompt=prompt,
             model=model,
             image_url=image_url,
@@ -159,7 +171,7 @@ class VolcengineVideoGenProvider(VideoGenProvider):
             )
         return res
 
-    def _generate_sync_wrapper(
+    def _generate_sync(
         self,
         prompt: str,
         *,
@@ -173,48 +185,6 @@ class VolcengineVideoGenProvider(VideoGenProvider):
         audio: Optional[bool] = None,
         seed: Optional[int] = None,
         **kwargs: Any,
-    ) -> Dict[str, Any]:
-        try:
-            loop = asyncio.new_event_loop()
-            try:
-                return loop.run_until_complete(self._generate_async(
-                    prompt=prompt,
-                    model=model,
-                    image_url=image_url,
-                    reference_image_urls=reference_image_urls,
-                    duration=duration,
-                    aspect_ratio=aspect_ratio,
-                    resolution=resolution,
-                    negative_prompt=negative_prompt,
-                    audio=audio,
-                    seed=seed,
-                ))
-            finally:
-                loop.close()
-        except Exception as exc:
-            logger.warning("Volcengine video gen unexpected failure: %s", exc, exc_info=True)
-            return error_response(
-                error=f"火山引擎视频生成失败: {exc}",
-                error_type="api_error",
-                provider="volcengine",
-                model=model or DEFAULT_MODEL,
-                prompt=prompt,
-                aspect_ratio=aspect_ratio,
-            )
-
-    async def _generate_async(
-        self,
-        *,
-        prompt: str,
-        model: Optional[str],
-        image_url: Optional[str],
-        reference_image_urls: Optional[List[str]],
-        duration: Optional[int],
-        aspect_ratio: str,
-        resolution: str,
-        negative_prompt: Optional[str],
-        audio: Optional[bool],
-        seed: Optional[int],
     ) -> Dict[str, Any]:
         api_key = _get_api_key()
         if not api_key:
@@ -291,11 +261,11 @@ class VolcengineVideoGenProvider(VideoGenProvider):
             "Content-Type": "application/json",
         }
 
-        async with httpx.AsyncClient() as client:
+        with httpx.Client() as client:
             try:
                 # 1. Create task
                 print(f"[volcengine] Creating video generation task...", file=sys.stderr)
-                resp = await client.post(BASE_URL, json=payload, headers=headers, timeout=_TIMEOUT)
+                resp = client.post(BASE_URL, json=payload, headers=headers, timeout=_TIMEOUT)
                 resp.raise_for_status()
                 res_data = resp.json()
             except httpx.HTTPStatusError as exc:
@@ -349,12 +319,12 @@ class VolcengineVideoGenProvider(VideoGenProvider):
             while elapsed < timeout:
                 try:
                     status_url = f"{BASE_URL}/{task_id}"
-                    status_resp = await client.get(status_url, headers=headers, timeout=_TIMEOUT)
+                    status_resp = client.get(status_url, headers=headers, timeout=_TIMEOUT)
                     status_resp.raise_for_status()
                     status_data = status_resp.json()
                 except Exception as exc:
                     print(f"[volcengine] Polling error: {exc}. Retrying...", file=sys.stderr)
-                    await asyncio.sleep(poll_interval)
+                    time.sleep(poll_interval)
                     elapsed += poll_interval
                     continue
 
@@ -378,7 +348,7 @@ class VolcengineVideoGenProvider(VideoGenProvider):
                         aspect_ratio=aspect,
                     )
 
-                await asyncio.sleep(poll_interval)
+                time.sleep(poll_interval)
                 elapsed += poll_interval
 
             if not video_url:
@@ -407,7 +377,7 @@ class VolcengineVideoGenProvider(VideoGenProvider):
             print("[volcengine] Downloading video to local cache...", file=sys.stderr)
             try:
                 from agent.video_gen_provider import save_bytes_video
-                video_resp = await client.get(video_url, timeout=_TIMEOUT)
+                video_resp = client.get(video_url, timeout=_TIMEOUT)
                 video_resp.raise_for_status()
                 local_path = save_bytes_video(video_resp.content, prefix=f"volc_{model}")
                 video_ref = str(local_path)

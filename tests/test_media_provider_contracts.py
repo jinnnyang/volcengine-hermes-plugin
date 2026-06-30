@@ -161,30 +161,27 @@ def test_video_payload_uses_default_seedance_model(monkeypatch):
         def raise_for_status(self):
             return None
 
-    class FakeAsyncClient:
-        async def __aenter__(self):
+    class FakeClient:
+        def __enter__(self):
             return self
 
-        async def __aexit__(self, exc_type, exc, tb):
+        def __exit__(self, exc_type, exc, tb):
             return False
 
-        async def post(self, url, *, json, headers, timeout):
+        def post(self, url, *, json, headers, timeout):
             captured["url"] = url
             captured["payload"] = json
             captured["headers"] = headers
             return FakeCreateResponse()
 
-        async def get(self, url, *, headers=None, timeout=None):
+        def get(self, url, *, headers=None, timeout=None):
             if url.endswith("/task-123"):
                 return FakeStatusResponse()
             return FakeVideoResponse()
 
     monkeypatch.setenv("VOLCENGINE_API_KEY", "test-key")
-    monkeypatch.setattr(module.httpx, "AsyncClient", lambda: FakeAsyncClient())
-    monkeypatch.setattr(module.asyncio, "sleep", lambda *_args, **_kwargs: _fake_async_noop())
-
-    async def fake_save_bytes_video(raw, prefix="video", extension="mp4"):
-        return Path("C:/tmp/fake.mp4")
+    monkeypatch.setattr(module.httpx, "Client", lambda: FakeClient())
+    monkeypatch.setattr(module.time, "sleep", lambda *_args, **_kwargs: None)
 
     # Import inside provider is patched by replacing sys.modules helper.
     sys.modules["agent.video_gen_provider"].save_bytes_video = lambda raw, prefix="video", extension="mp4": Path("C:/tmp/fake.mp4")
@@ -198,6 +195,3 @@ def test_video_payload_uses_default_seedance_model(monkeypatch):
     assert result["model"] == "doubao-seedance-1.5-pro"
     assert result["task_id"] == "task-123"
 
-
-async def _fake_async_noop():
-    return None

@@ -44,8 +44,8 @@ def resolve_volcengine_endpoint(suffix: str) -> str:
     return resolve_volcengine_base_url().rstrip("/") + "/" + suffix.lstrip("/")
 
 
-def resolve_volcengine_speech_api_key() -> str:
-    """Resolve the API key for Volcengine speech providers.
+def resolve_volcengine_api_key() -> str:
+    """Resolve the API key for Volcengine providers.
 
     Precedence:
     1. VOLCENGINE_API_KEY, the shared Volcengine API key.

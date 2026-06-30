@@ -104,10 +104,9 @@ Secrets 永远不要写入 `config.yaml`。请把 key 放在目标 profile 的 `
 
 ```bash
 VOLCENGINE_API_KEY=[REDACTED]
-VOLCENGINE_SPEECH_API_KEY=[REDACTED]
 ```
 
-`VOLCENGINE_SPEECH_API_KEY` 是 TTS 和 STT 推荐使用的专用语音 key。当前语音 provider 也会兼容 fallback 到 `VOLCENGINE_API_KEY` 和 `ARK_API_KEY`。
+`VOLCENGINE_API_KEY` 是火山引擎各服务共享的统一 API Key。当前 provider 也会兼容 fallback 到 `ARK_API_KEY`。
 
 安装后需要重启 Hermes Agent 或 reset session，让新启用的插件被加载。
 
@@ -202,9 +201,7 @@ stt:
 ```bash
 # 至少需要以下其中一个：
 VOLCENGINE_API_KEY=[你的-...]
-# 语音 TTS/STT 推荐使用专用 key：
-VOLCENGINE_SPEECH_API_KEY=[你的-speech-key]
-# 如果没有 speech key，ARK API key 也可以兼容：
+# 如果没有，ARK API key 也可以作为 fallback：
 ARK_API_KEY=[你的-ark-key]
 ```
 ```

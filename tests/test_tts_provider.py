@@ -92,10 +92,10 @@ def test_speech_api_key_precedence(monkeypatch):
     monkeypatch.setenv("ARK_API_KEY", "ark-key")
     monkeypatch.setenv("VOLCENGINE_API_KEY", "volcengine-key")
 
-    assert config.resolve_volcengine_speech_api_key() == "volcengine-key"
+    assert config.resolve_volcengine_api_key() == "volcengine-key"
 
     monkeypatch.delenv("VOLCENGINE_API_KEY")
-    assert config.resolve_volcengine_speech_api_key() == "ark-key"
+    assert config.resolve_volcengine_api_key() == "ark-key"
 
 
 def test_synthesize_posts_tts_request_and_writes_base64_chunks(monkeypatch, tmp_path):
